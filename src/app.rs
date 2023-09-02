@@ -1,0 +1,85 @@
+use std::sync::Arc;
+
+use anyhow::{Error, Ok, Result};
+use dashmap::DashMap;
+use tokio::sync::{mpsc::Sender, RwLock};
+use web_rwkv::tokenizer::Tokenizer;
+
+use crate::{
+    config::ModelConfig,
+    helper::{Logits, State},
+    states::{
+        infer::{InferContext, InferRequest, InferResult},
+        penalty::types::Penalty,
+        sampler::Samplers,
+    },
+};
+
+pub struct AppState {
+    pub config: ModelConfig,
+    pub samplers: Arc<Samplers>,
+    pub infer_queue: Sender<InferRequest>,
+    // State holders
+    // Can be None to represent state not created by pipeline yet
+    pub infer_states: Arc<DashMap<String, Option<State>>>,
+    pub penalties: Arc<DashMap<String, Arc<RwLock<Box<dyn Penalty>>>>>,
+    pub tokenizer: Arc<Tokenizer>,
+}
+
+impl AppState {
+    pub async fn new(config: &ModelConfig, queue: Sender<InferRequest>) -> Result<Self> {
+        Ok(AppState {
+            config: config.clone(),
+            samplers: Arc::new(Samplers::new()),
+            infer_queue: queue,
+            infer_states: Arc::new(DashMap::with_capacity(128)),
+            penalties: Arc::new(DashMap::with_capacity(128)),
+            tokenizer: Arc::new(config.tokenizer.load_tokenizer().await?),
+        })
+    }
+
+    pub async fn create_state(&self, id: String) -> Result<()> {
+        if self.infer_states.contains_key(&id) {
+            return Err(Error::msg("State already exists!"));
+        }
+        self.infer_states.insert(id, None);
+        Ok(())
+    }
+
+    pub async fn copy_state(&self, src: String, dst: String) -> Result<()> {
+        let src = self
+            .infer_states
+            .get(&src)
+            .ok_or(Error::msg("State doesn't exist!"))?
+            .clone();
+        self.infer_states.insert(dst, src);
+        Ok(())
+    }
+
+    pub async fn delete_state(&self, id: String) -> Result<()> {
+        if !self.infer_states.contains_key(&id) {
+            return Err(Error::msg("State doesn't exist!"));
+        }
+        self.infer_states.remove(&id);
+        Ok(())
+    }
+
+    pub async fn tokenize(&self, input: &Vec<u8>) -> Result<Vec<u16>> {
+        Ok(self.tokenizer.encode(&input)?)
+    }
+
+    pub async fn infer(&self, state_key: String, tokens: Vec<u16>) -> Result<Logits> {
+        let state = self
+            .infer_states
+            .get(&state_key)
+            .ok_or(Error::msg(format!("State {} doesn't exist!", state_key)))?
+            .clone();
+        let context = InferContext { state, tokens };
+        let InferResult { state, logits } =
+            InferRequest::send(context, self.infer_queue.clone()).await?;
+        self.infer_states.insert(state_key, Some(state));
+        Ok(logits)
+    }
+}
+
+pub type SharedState = Arc<AppState>;

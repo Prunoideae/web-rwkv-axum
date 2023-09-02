@@ -1,0 +1,27 @@
+[package]
+description = "A websocket backend for web-rwkv written in Axum."
+edition = "2021"
+name = "web-rwkv-axum"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.75"
+async-trait = "0.1.73"
+axum = {version = "0.6.20", features = ["ws"]}
+bnf_sampler = "0.1.2"
+clap = {version = "4.4.1", features = ["derive"]}
+dashmap = {version = "5.5.3", features = ["rayon", "serde"]}
+futures-util = "0.3.28"
+lazy_static = "1.4.0"
+maplit = "1.0.2"
+memmap2 = "0.7.1"
+num_cpus = "1.16.0"
+rayon = "1.7.0"
+rhai = {version = "1.15.1", features = ["serde", "serde_json"]}
+serde = "1.0.188"
+serde_json = "1.0.105"
+tokio = {version = "1.32.0", features = ["full"]}
+toml = "0.7.6"
+web-rwkv = "0.2.3"
