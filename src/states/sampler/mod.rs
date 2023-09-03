@@ -26,9 +26,10 @@ impl Samplers {
         Samplers {
             registry: hashmap_ex! {
                 HashMap<&'static str, fn(SharedState, Option<Value>) -> Result<Box<dyn Sampler>>>,
-                {
-                "typical" => typical::initialize_typical
-            }},
+                    {
+                        "typical" => typical::initialize_typical
+                    }
+            },
             map: DashMap::with_capacity(128),
         }
     }
@@ -79,6 +80,28 @@ impl Samplers {
         } else {
             Err(Error::msg("Sampler id doesn't exist!"))
         }
+    }
+
+    pub async fn update_sampler(&self, id: String, content: Vec<u16>) -> Result<()> {
+        if let Some(mut sampler) = self.map.get_mut(&id) {
+            sampler.update(content);
+            Ok(())
+        } else {
+            Err(Error::msg("Sampler id doesn't exist!"))
+        }
+    }
+
+    pub async fn copy_sampler(&self, src: String, dst: String) -> Result<()> {
+        if self.map.contains_key(&dst) {
+            return Err(Error::msg("Destination sampler id already exists!"));
+        }
+        let src = self
+            .map
+            .get(&src)
+            .ok_or(Error::msg("Sampler doesn't exist!"))?
+            .clone();
+        self.map.insert(dst, src);
+        Ok(())
     }
 
     pub fn sample_token(&self, id: String, probs: Vec<Logits>) -> Result<u16> {

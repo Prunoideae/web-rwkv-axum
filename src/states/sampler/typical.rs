@@ -1,12 +1,10 @@
+use super::types::Sampler;
+use crate::{app::SharedState, helper::Logits};
 use anyhow::{Error, Ok, Result};
 use serde_json::Value;
 
-use crate::{app::SharedState, helper::Logits};
-
-use super::types::Sampler;
-
 /// Typical sampler for logits
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TypicalSampler {
     top_p: f32,
     temp: f32,
@@ -18,6 +16,15 @@ impl Sampler for TypicalSampler {
     }
 
     fn clear(&mut self) {}
+
+    fn update(&mut self, tokens: Vec<u16>) {}
+
+    fn clone(&self) -> Box<dyn Sampler> {
+        Box::new(Self {
+            top_p: self.top_p,
+            temp: self.temp,
+        })
+    }
 }
 
 pub fn initialize_typical(state: SharedState, data: Option<Value>) -> Result<Box<dyn Sampler>> {

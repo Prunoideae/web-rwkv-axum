@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::{Error, Ok, Result};
 use dashmap::DashMap;
-use tokio::sync::{mpsc::Sender, RwLock};
+use tokio::sync::mpsc::Sender;
 use web_rwkv::tokenizer::Tokenizer;
 
 use crate::{
@@ -11,7 +11,7 @@ use crate::{
     states::{
         infer::{InferContext, InferRequest, InferResult},
         sampler::Samplers,
-        transformer::types::Transformer,
+        transformer::Transformers,
     },
 };
 
@@ -19,10 +19,11 @@ use crate::{
 pub struct AppState {
     pub config: ModelConfig,
     pub samplers: Arc<Samplers>,
-    pub infer_queue: Sender<InferRequest>,
+    pub transformers: Arc<Transformers>,
+    infer_queue: Sender<InferRequest>,
     // State holders
     // Can be None to represent state not created by pipeline yet
-    pub infer_states: Arc<DashMap<String, Option<State>>>,
+    infer_states: Arc<DashMap<String, Option<State>>>,
     pub tokenizer: Arc<Tokenizer>,
 }
 
@@ -31,10 +32,16 @@ impl AppState {
         Ok(AppState {
             config: config.clone(),
             samplers: Arc::new(Samplers::new()),
+            transformers: Arc::new(Transformers::new()),
             infer_queue: queue,
             infer_states: Arc::new(DashMap::with_capacity(128)),
             tokenizer: Arc::new(config.tokenizer.load_tokenizer().await?),
         })
+    }
+
+    pub async fn update_state(&self, id: String, tokens: Vec<u16>) -> Result<()> {
+        // TODO: Implement state update
+        Ok(())
     }
 
     pub async fn create_state(&self, id: String) -> Result<()> {
@@ -46,6 +53,9 @@ impl AppState {
     }
 
     pub async fn copy_state(&self, src: String, dst: String) -> Result<()> {
+        if self.infer_states.contains_key(&dst) {
+            return Err(Error::msg("Destination state id already exists!"));
+        }
         let src = self
             .infer_states
             .get(&src)
@@ -66,7 +76,7 @@ impl AppState {
         Ok(self.tokenizer.encode(&input)?)
     }
 
-    pub async fn infer(&self, state_key: String, tokens: Vec<u16>) -> Result<Logits> {
+    async fn infer(&self, state_key: String, tokens: Vec<u16>) -> Result<Logits> {
         let state = self
             .infer_states
             .get(&state_key)

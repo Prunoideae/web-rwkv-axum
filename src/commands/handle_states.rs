@@ -2,7 +2,7 @@ use anyhow::{Error, Result};
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::app::SharedState;
+use crate::{app::SharedState, commands::helpers};
 
 #[inline]
 pub async fn create_state(data: Option<Value>, state: SharedState) -> Result<Value> {
@@ -61,5 +61,24 @@ pub async fn delete_state(data: Option<Value>, state: SharedState) -> Result<Val
             .map(|_| Value::Null)
     } else {
         Err(Error::msg("Field data is needed to specify state id!"))
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct StateUpdate {
+    id: String,
+    tokens: Value,
+}
+
+#[inline]
+pub async fn update_state(data: Option<Value>, state: SharedState) -> Result<Value> {
+    if let Some(data) = data {
+        let StateUpdate { id, tokens } = serde_json::from_value(data)?;
+        let tokens = helpers::to_tokens(&state, tokens).await?;
+        state.update_state(id, tokens).await.map(|_| Value::Null)
+    } else {
+        Err(Error::msg(
+            "Field data is needed to specify state id and tokens!",
+        ))
     }
 }

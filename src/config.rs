@@ -111,7 +111,10 @@ impl ModelSpec {
             .map(|bits| Quantization::Int8(LayerFlags::from_bits_retain(bits)))
             .unwrap_or_default();
 
-        Ok(ModelBuilder::new(context, &map).with_quant(quant).build()?)
+        Ok(ModelBuilder::new(context, &map)
+            .with_token_chunk_size(self.get_chunk_size())
+            .with_quant(quant)
+            .build()?)
     }
 }
 

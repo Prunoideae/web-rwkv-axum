@@ -11,6 +11,7 @@ anyhow = "1.0.75"
 async-trait = "0.1.73"
 axum = {version = "0.6.20", features = ["ws"]}
 bnf_sampler = "0.1.2"
+bson = "2.7.0"
 clap = {version = "4.4.1", features = ["derive"]}
 dashmap = {version = "5.5.3", features = ["rayon", "serde"]}
 futures-util = "0.3.28"

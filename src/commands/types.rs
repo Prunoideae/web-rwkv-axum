@@ -4,7 +4,7 @@ use serde_json::Value;
 
 #[derive(Debug, Serialize)]
 pub struct CommandError {
-    echo_id: String,
+    echo_id: Option<String>,
     status: &'static str,
     error: String,
 }
@@ -12,7 +12,15 @@ pub struct CommandError {
 impl CommandError {
     pub fn new(id: String, error: Error) -> Self {
         Self {
-            echo_id: id,
+            echo_id: Some(id),
+            status: "error",
+            error: error.to_string(),
+        }
+    }
+
+    pub fn new_raw(error: Error) -> Self {
+        Self {
+            echo_id: None,
             status: "error",
             error: error.to_string(),
         }
