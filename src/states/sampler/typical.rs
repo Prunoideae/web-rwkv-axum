@@ -1,7 +1,7 @@
 use anyhow::{Error, Ok, Result};
 use serde_json::Value;
 
-use crate::app::SharedState;
+use crate::{app::SharedState, helper::Logits};
 
 use super::types::Sampler;
 
@@ -13,9 +13,11 @@ pub struct TypicalSampler {
 }
 
 impl Sampler for TypicalSampler {
-    fn sample(&mut self, probs: Vec<Vec<f32>>) -> Result<u16> {
+    fn sample(&mut self, probs: Vec<Logits>) -> Result<u16> {
         todo!()
     }
+
+    fn clear(&mut self) {}
 }
 
 pub fn initialize_typical(state: SharedState, data: Option<Value>) -> Result<Box<dyn Sampler>> {

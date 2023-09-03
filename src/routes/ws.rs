@@ -28,14 +28,14 @@ async fn handle_socket(socket: WebSocket, state: SharedState) {
 
     while let Some(Ok(msg)) = receiver.next().await {
         match msg {
-            axum::extract::ws::Message::Text(text) => {
+            Message::Text(text) => {
                 tokio::spawn(handle_command_text(state.clone(), sender.clone(), text));
             }
             // TODO: Possibly add a way to handle byte-encoded things
-            axum::extract::ws::Message::Binary(bytes) => {
+            Message::Binary(bytes) => {
                 tokio::spawn(handle_command_bytes(state.clone(), sender.clone(), bytes));
             }
-            axum::extract::ws::Message::Close(_) => break,
+            Message::Close(_) => break,
             _ => (),
         }
     }

@@ -1,14 +1,13 @@
+use std::fmt::Debug;
+
 use anyhow::Result;
 
-/// Sample a token from logits.
+use crate::helper::Logits;
+
+/// Sample a token from probablities (after softmax).
 ///
 /// Multiple logits might present (in case of CFG).
-pub trait Sampler {
-    /// Initialize the sampler.
-    ///
-    /// This is done separately due to access to AppState is needed.
-    fn sample(&mut self, probs: Vec<Vec<f32>>) -> Result<u16>;
+pub trait Sampler: Send + Sync + Debug {
+    fn sample(&mut self, probs: Vec<Logits>) -> Result<u16>;
+    fn clear(&mut self);
 }
-
-
-

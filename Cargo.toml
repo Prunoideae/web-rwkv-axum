@@ -25,3 +25,6 @@ serde_json = "1.0.105"
 tokio = {version = "1.32.0", features = ["full"]}
 toml = "0.7.6"
 web-rwkv = "0.2.3"
+
+[profile.release]
+lto = true

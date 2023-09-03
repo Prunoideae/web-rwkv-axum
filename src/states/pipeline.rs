@@ -69,9 +69,10 @@ impl Slots<'_, '_> {
                 self.slots[idx] = callback;
                 self.batch_tokens[idx] = tokens;
 
-                // TODO: Also upload th state to the model state
                 if let Some(state) = state {
+                    // TODO: Uploads the state to the model state
                 } else {
+                    //TODO: Uploads an empty state
                 }
                 break;
             }

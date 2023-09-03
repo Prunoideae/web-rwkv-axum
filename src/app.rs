@@ -10,11 +10,12 @@ use crate::{
     helper::{Logits, State},
     states::{
         infer::{InferContext, InferRequest, InferResult},
-        penalty::types::Penalty,
         sampler::Samplers,
+        transformer::types::Transformer,
     },
 };
 
+/// Global state holder of the entire app.
 pub struct AppState {
     pub config: ModelConfig,
     pub samplers: Arc<Samplers>,
@@ -22,7 +23,6 @@ pub struct AppState {
     // State holders
     // Can be None to represent state not created by pipeline yet
     pub infer_states: Arc<DashMap<String, Option<State>>>,
-    pub penalties: Arc<DashMap<String, Arc<RwLock<Box<dyn Penalty>>>>>,
     pub tokenizer: Arc<Tokenizer>,
 }
 
@@ -33,7 +33,6 @@ impl AppState {
             samplers: Arc::new(Samplers::new()),
             infer_queue: queue,
             infer_states: Arc::new(DashMap::with_capacity(128)),
-            penalties: Arc::new(DashMap::with_capacity(128)),
             tokenizer: Arc::new(config.tokenizer.load_tokenizer().await?),
         })
     }
@@ -57,11 +56,10 @@ impl AppState {
     }
 
     pub async fn delete_state(&self, id: String) -> Result<()> {
-        if !self.infer_states.contains_key(&id) {
-            return Err(Error::msg("State doesn't exist!"));
-        }
-        self.infer_states.remove(&id);
-        Ok(())
+        self.infer_states
+            .remove(&id)
+            .ok_or(Error::msg("State doesn't exist!"))
+            .map(|_| ())
     }
 
     pub async fn tokenize(&self, input: &Vec<u8>) -> Result<Vec<u16>> {
