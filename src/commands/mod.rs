@@ -2,7 +2,7 @@ use anyhow::{Error, Ok, Result};
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::app::SharedState;
+use crate::{app::SharedState, register_handlers};
 
 mod handle_samplers;
 mod handle_states;
@@ -20,20 +20,28 @@ pub struct TextCommand {
 
 impl TextCommand {
     pub async fn handle(&self, state: SharedState) -> Result<Value> {
-        match self.command.as_str() {
-            // Handle States
-            "create_state" => handle_states::create_state(self.data.clone(), state).await,
-            "copy_state" => handle_states::copy_state(self.data.clone(), state).await,
-            "delete_state" => handle_states::delete_state(self.data.clone(), state).await,
-            "update_state" => handle_states::update_state(self.data.clone(), state).await,
-
-            // Handle Transformers
-
-            // Handle Samplers
-
-            //For testing
-            "echo" => Ok(self.data.clone().unwrap_or(Value::Null)),
-            _ => Err(Error::msg("Unknown command!")),
-        }
+        register_handlers!(
+            self,
+            state,
+            [
+                // States
+                handle_states::create_state,
+                handle_states::copy_state,
+                handle_states::update_state,
+                handle_states::delete_state,
+                //Transformers
+                handle_transformers::create_transformer,
+                handle_transformers::copy_transformer,
+                handle_transformers::update_transformer,
+                handle_transformers::delete_transformer,
+                handle_transformers::reset_transformer,
+                //Samplers
+                handle_samplers::create_sampler,
+                handle_samplers::copy_sampler,
+                handle_samplers::update_sampler,
+                handle_samplers::delete_sampler,
+                handle_samplers::reset_sampler,
+            ]
+        )
     }
 }

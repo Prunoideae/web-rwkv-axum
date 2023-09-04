@@ -24,7 +24,7 @@
 /// );
 /// # }
 /// ```
-/// 
+///
 /// From https://github.com/kurikomoe/maplit/commit/c165ea30b4c6d750f933f668099ae35ca166794e
 macro_rules! hashmap_ex {
     (@single $($x:tt)*) => (());
@@ -39,6 +39,17 @@ macro_rules! hashmap_ex {
                 let _ = _map.insert($key, $value);
             )*
             _map
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! register_handlers {
+    ($self:ident, $state:ident, [$($crate_name:ident :: $handler_name:ident), *,]) => {
+        match $self.command.as_str(){
+            "echo" => Ok($self.data.clone().unwrap_or(Value::Null)),
+            $(stringify!($handler_name) => $crate_name::$handler_name($self.data.clone(), $state).await,)*
+            _ => Err(Error::msg("Unknown command!"))
         }
     };
 }
