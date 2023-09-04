@@ -29,3 +29,11 @@ web-rwkv = "0.2.3"
 
 [profile.release]
 lto = true
+
+[lib]
+name = "web_rwkv_axum"
+path = "src/lib.rs"
+
+[[bin]]
+name = "web-rwkv-axum"
+path = "src/main.rs"

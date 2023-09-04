@@ -1,21 +1,13 @@
-mod app;
-mod cli;
-mod commands;
-mod config;
-mod helper;
-mod macros;
-mod routes;
-mod states;
-
 use anyhow::{Ok, Result};
-use app::{AppState, SharedState};
 use axum::{routing::get, Router};
 use clap::Parser;
-use routes::{hello_world, ws};
-use states::pipeline::Pipeline;
 use tokio::runtime::Builder;
-
-use crate::cli::LaunchArgs;
+use web_rwkv_axum::{
+    app::{AppState, SharedState},
+    cli::LaunchArgs,
+    routes::{hello_world, ws},
+    states::pipeline::Pipeline,
+};
 
 async fn app(args: LaunchArgs) -> Result<()> {
     let model_config = args.get_config()?;
