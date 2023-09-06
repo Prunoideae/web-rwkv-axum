@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone)]
 pub struct Logits(pub Vec<f32>);
 
@@ -22,6 +21,7 @@ impl State {
 }
 
 pub fn softmax(tensor: Logits) -> Vec<f32> {
+    // TODO: Fix slow softmax
     let tensor = tensor.0.into_iter();
     let max = tensor.clone().reduce(f32::max).unwrap_or_default();
     let tensor = tensor.map(|x| (x - max).exp());

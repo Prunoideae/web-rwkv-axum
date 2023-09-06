@@ -23,10 +23,15 @@ async def invoke_command(ws: WebSocketClientProtocol, command: str, payload: Any
     echo_id = str(randint(0, 2**31))
     payload = {"echo_id": echo_id, "command": command, "data": payload}
     await ws.send(json.dumps(payload))
-    return json.loads(await ws.recv())
+    start = time()
+    result = json.loads(await ws.recv())
+    elapsed = time() - start
+    print(f"\n{elapsed*1000:.1f}ms, tps: {1/elapsed}")
+    return result
 
 
 commands = [
+    ["echo", "sus"],
     ["create_state", "sussy_baka"],
     [
         "create_sampler",
@@ -69,7 +74,6 @@ async def main():
                 print(result)
 
         for i in range(repeats):
-            start = time()
             data = {
                 "tokens": None,
                 "states": ["sussy_baka"],
@@ -80,8 +84,6 @@ async def main():
             data["tokens"] = [result]
             result = (await invoke_command(ws, "infer", data))["result"]
             print(result, flush=True, end="")
-            elapsed = time() - start
-            print(f"\n{elapsed*1000:.1f}ms, tps: {1/elapsed}")
 
         await invoke_command(ws, "delete_state", "sussy_baka")
         await invoke_command(ws, "delete_sampler", "sampler_test")

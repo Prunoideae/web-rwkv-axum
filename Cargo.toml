@@ -29,6 +29,7 @@ web-rwkv = {git = 'https://github.com/cryscan/web-rwkv'}
 
 [profile.release]
 lto = true
+debug = true
 
 [lib]
 name = "web_rwkv_axum"
