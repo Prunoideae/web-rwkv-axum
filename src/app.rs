@@ -52,6 +52,11 @@ impl AppState {
         Ok(())
     }
 
+    #[inline(always)]
+    pub fn has_state(&self, id: &String) -> bool {
+        self.infer_states.contains_key(id)
+    }
+
     pub async fn copy_state(&self, src: String, dst: String) -> Result<()> {
         if self.infer_states.contains_key(&dst) {
             return Err(Error::msg("Destination state id already exists!"));
@@ -72,11 +77,11 @@ impl AppState {
             .map(|_| ())
     }
 
-    pub async fn tokenize(&self, input: &Vec<u8>) -> Result<Vec<u16>> {
+    pub fn tokenize(&self, input: &Vec<u8>) -> Result<Vec<u16>> {
         Ok(self.tokenizer.encode(&input)?)
     }
 
-    async fn infer(&self, state_key: String, tokens: Vec<u16>) -> Result<Logits> {
+    pub async fn infer(&self, state_key: String, tokens: Vec<u16>) -> Result<Logits> {
         let state = self
             .infer_states
             .get(&state_key)

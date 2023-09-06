@@ -17,10 +17,10 @@ max_chunk_count = 256
 preference = "HighPerformance"
 # Adapter index to select, usually 0.
 # There might be a tool to check for adapters later.
-adapter = 0
+# adapter = 0
 # Quantize a certain layer of the model, a bit flag.
 # If omitted, no quantization is done.
-# quantization = 1
+quantization = 1073741823
 
 [tokenizer]
 # Path to the vocab JSON.

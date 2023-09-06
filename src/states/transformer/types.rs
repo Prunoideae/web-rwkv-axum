@@ -4,8 +4,8 @@ use std::fmt::Debug;
 ///
 /// A good use of it is penalties.
 pub trait Transformer: Send + Sync + Debug {
-    fn update(&mut self, prompt: Vec<u16>);
-    fn transform(&mut self, logits: &mut Vec<f32>);
+    fn update(&mut self, prompt: &Vec<u16>);
+    fn transform(&self, logits: &mut Vec<f32>);
     fn clear(&mut self);
     fn clone(&self) -> Box<dyn Transformer>;
 }

@@ -4,6 +4,7 @@ use serde_json::Value;
 
 use crate::{app::SharedState, register_handlers};
 
+mod handle_infer;
 mod handle_samplers;
 mod handle_states;
 mod handle_transformers;
@@ -41,6 +42,8 @@ impl TextCommand {
                 handle_samplers::update_sampler,
                 handle_samplers::delete_sampler,
                 handle_samplers::reset_sampler,
+                //Infer
+                handle_infer::infer,
             ]
         )
     }

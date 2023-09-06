@@ -19,7 +19,6 @@ pub async fn create_transformer(data: Option<Value>, state: SharedState) -> Resu
         state
             .transformers
             .create_transformer(type_id, state.clone(), params)
-            .await
             .map(|_| Value::Null)
     } else {
         Err(Error::msg(
@@ -44,7 +43,6 @@ pub async fn copy_transformer(data: Option<Value>, state: SharedState) -> Result
         state
             .transformers
             .copy_transformer(source, destination)
-            .await
             .map(|_| Value::Null)
     } else {
         Err(Error::msg(
@@ -65,7 +63,6 @@ pub async fn delete_transformer(data: Option<Value>, state: SharedState) -> Resu
                     ))?
                     .to_string(),
             )
-            .await
             .map(|_| Value::Null)
     } else {
         Err(Error::msg(
@@ -84,11 +81,10 @@ struct TransformerUpdate {
 pub async fn update_transformer(data: Option<Value>, state: SharedState) -> Result<Value> {
     if let Some(data) = data {
         let TransformerUpdate { id, tokens } = serde_json::from_value(data)?;
-        let tokens = helpers::to_tokens(&state, tokens).await?;
+        let tokens = helpers::to_tokens(&state, tokens)?;
         state
             .transformers
-            .update_transformer(id, tokens)
-            .await
+            .update_transformer(&id, &tokens)
             .map(|_| Value::Null)
     } else {
         Err(Error::msg(

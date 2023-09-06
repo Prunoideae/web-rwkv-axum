@@ -142,7 +142,7 @@ impl Pipeline {
         let handle = tokio::spawn(async move {
             let context = config.model.create_context().await.unwrap();
             let model = config.model.load_model(&context).await.unwrap();
-
+            println!("Model is loaded!");
             let mut slots = Slots::new(config.model.get_batch_size(), &context, &model);
             loop {
                 // When something arrives in the channel.

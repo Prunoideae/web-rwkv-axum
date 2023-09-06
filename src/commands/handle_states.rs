@@ -74,7 +74,7 @@ struct StateUpdate {
 pub async fn update_state(data: Option<Value>, state: SharedState) -> Result<Value> {
     if let Some(data) = data {
         let StateUpdate { id, tokens } = serde_json::from_value(data)?;
-        let tokens = helpers::to_tokens(&state, tokens).await?;
+        let tokens = helpers::to_tokens(&state, tokens)?;
         state.update_state(id, tokens).await.map(|_| Value::Null)
     } else {
         Err(Error::msg(

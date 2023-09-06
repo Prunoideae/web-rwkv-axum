@@ -96,11 +96,16 @@ impl ModelSpec {
 
     pub async fn create_context(&self) -> Result<Context> {
         let adapter = self.select_adapter(&Instance::new()).await?;
-        Ok(ContextBuilder::new(adapter)
-            .with_default_pipelines()
-            .with_quant_pipelines()
-            .build()
-            .await?)
+        println!("{:?}", adapter.get_info());
+        Ok(if self.quantization.is_none() {
+            ContextBuilder::new(adapter).with_default_pipelines()
+        } else {
+            ContextBuilder::new(adapter)
+                .with_default_pipelines()
+                .with_quant_pipelines()
+        }
+        .build()
+        .await?)
     }
 
     pub async fn load_model<'a>(&self, context: &'a Context) -> Result<Model<'a, '_>> {
@@ -113,6 +118,7 @@ impl ModelSpec {
 
         Ok(ModelBuilder::new(context, &map)
             .with_token_chunk_size(self.get_chunk_size())
+            .with_head_chunk_size(8192)
             .with_quant(quant)
             .build()?)
     }

@@ -1,5 +1,5 @@
 use super::types::Sampler;
-use crate::{app::SharedState, helper::Logits};
+use crate::app::SharedState;
 use anyhow::{Error, Ok, Result};
 use serde_json::Value;
 
@@ -11,13 +11,19 @@ pub struct TypicalSampler {
 }
 
 impl Sampler for TypicalSampler {
-    fn sample(&mut self, probs: Vec<Logits>) -> Result<u16> {
-        todo!()
+    fn sample(&self, probs: Vec<Vec<f32>>) -> Result<u16> {
+        Ok(probs[0]
+            .iter()
+            .enumerate()
+            .skip(1)
+            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+            .unwrap()
+            .0 as u16)
     }
 
     fn clear(&mut self) {}
 
-    fn update(&mut self, tokens: Vec<u16>) {}
+    fn update(&mut self, tokens: &Vec<Vec<u16>>) {}
 
     fn clone(&self) -> Box<dyn Sampler> {
         Box::new(Self {

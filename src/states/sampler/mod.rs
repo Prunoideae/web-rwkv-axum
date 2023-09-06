@@ -1,7 +1,7 @@
 use self::types::Sampler;
-use crate::{app::SharedState, hashmap_ex, helper::Logits};
+use crate::{app::SharedState, hashmap_ex};
 use anyhow::{Error, Ok, Result};
-use dashmap::DashMap;
+use dashmap::{mapref::one::RefMut, DashMap};
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -48,32 +48,33 @@ impl Samplers {
         }
     }
 
-    pub async fn create_sampler(
-        &self,
-        id: String,
-        state: SharedState,
-        data: Option<Value>,
-    ) -> Result<()> {
+    pub fn create_sampler(&self, id: String, state: SharedState, data: Value) -> Result<()> {
         if self.map.contains_key(&id) {
             return Err(Error::msg("Sampler already existed!"));
         }
-        if let Some(data) = data {
-            let SamplerJson { type_id, params } = serde_json::from_value::<SamplerJson>(data)?;
-            self.map.insert(id, self.create(&type_id, state, params)?);
-            Ok(())
-        } else {
-            Err(Error::msg("No data to construct sampler!"))
-        }
+        let SamplerJson { type_id, params } = serde_json::from_value::<SamplerJson>(data)?;
+        self.map.insert(id, self.create(&type_id, state, params)?);
+        Ok(())
     }
 
-    pub async fn delete_sampler(&self, id: String) -> Result<()> {
+    #[inline(always)]
+    pub fn get_sampler<'a>(&'a self, id: &String) -> Option<RefMut<'_, String, Box<dyn Sampler>>> {
+        self.map.get_mut(id)
+    }
+
+    #[inline(always)]
+    pub fn has_sampler(&self, id: &String) -> bool {
+        self.map.contains_key(id)
+    }
+
+    pub fn delete_sampler(&self, id: String) -> Result<()> {
         self.map
             .remove(&id)
             .ok_or(Error::msg("Sampler id doesn't exist!"))
             .map(|_| ())
     }
 
-    pub async fn reset_sampler(&self, id: String) -> Result<()> {
+    pub fn reset_sampler(&self, id: String) -> Result<()> {
         if let Some(mut sampler) = self.map.get_mut(&id) {
             sampler.clear();
             Ok(())
@@ -82,8 +83,8 @@ impl Samplers {
         }
     }
 
-    pub async fn update_sampler(&self, id: String, content: Vec<u16>) -> Result<()> {
-        if let Some(mut sampler) = self.map.get_mut(&id) {
+    pub fn update_sampler(&self, id: &String, content: &Vec<Vec<u16>>) -> Result<()> {
+        if let Some(mut sampler) = self.map.get_mut(id) {
             sampler.update(content);
             Ok(())
         } else {
@@ -91,7 +92,7 @@ impl Samplers {
         }
     }
 
-    pub async fn copy_sampler(&self, src: String, dst: String) -> Result<()> {
+    pub fn copy_sampler(&self, src: String, dst: String) -> Result<()> {
         if self.map.contains_key(&dst) {
             return Err(Error::msg("Destination sampler id already exists!"));
         }
@@ -104,8 +105,8 @@ impl Samplers {
         Ok(())
     }
 
-    pub fn sample_token(&self, id: String, probs: Vec<Logits>) -> Result<u16> {
-        if let Some(mut sampler) = self.map.get_mut(&id) {
+    pub fn sample_token(&self, id: &String, probs: Vec<Vec<f32>>) -> Result<u16> {
+        if let Some(sampler) = self.map.get(id) {
             Ok(sampler.sample(probs)?)
         } else {
             Err(Error::msg("Sampler id doesn't exist!"))

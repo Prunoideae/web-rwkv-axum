@@ -21,8 +21,8 @@ impl State {
     }
 }
 
-pub fn softmax(tensor: Vec<f32>) -> Vec<f32> {
-    let tensor = tensor.into_iter();
+pub fn softmax(tensor: Logits) -> Vec<f32> {
+    let tensor = tensor.0.into_iter();
     let max = tensor.clone().reduce(f32::max).unwrap_or_default();
     let tensor = tensor.map(|x| (x - max).exp());
     let sum: f32 = tensor.clone().sum();

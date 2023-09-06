@@ -8,18 +8,17 @@ use super::helpers;
 
 #[derive(Debug, Deserialize)]
 struct SamplerArgs {
-    type_id: String,
-    params: Option<Value>,
+    id: String,
+    data: Value,
 }
 
 #[inline]
 pub async fn create_sampler(data: Option<Value>, state: SharedState) -> Result<Value> {
     if let Some(data) = data {
-        let SamplerArgs { type_id, params } = serde_json::from_value(data)?;
+        let SamplerArgs { id, data } = serde_json::from_value(data)?;
         state
             .samplers
-            .create_sampler(type_id, state.clone(), params)
-            .await
+            .create_sampler(id, state.clone(), data)
             .map(|_| Value::Null)
     } else {
         Err(Error::msg(
@@ -44,7 +43,6 @@ pub async fn copy_sampler(data: Option<Value>, state: SharedState) -> Result<Val
         state
             .samplers
             .copy_sampler(source, destination)
-            .await
             .map(|_| Value::Null)
     } else {
         Err(Error::msg(
@@ -65,7 +63,6 @@ pub async fn delete_sampler(data: Option<Value>, state: SharedState) -> Result<V
                     ))?
                     .to_string(),
             )
-            .await
             .map(|_| Value::Null)
     } else {
         Err(Error::msg("Field data is needed to specify sampler id!"))
@@ -82,11 +79,10 @@ struct SamplerUpdate {
 pub async fn update_sampler(data: Option<Value>, state: SharedState) -> Result<Value> {
     if let Some(data) = data {
         let SamplerUpdate { id, tokens } = serde_json::from_value(data)?;
-        let tokens = helpers::to_tokens(&state, tokens).await?;
+        let tokens = helpers::to_token_vec(&state, tokens)?;
         state
             .samplers
-            .update_sampler(id, tokens)
-            .await
+            .update_sampler(&id, &tokens)
             .map(|_| Value::Null)
     } else {
         Err(Error::msg(
@@ -107,7 +103,6 @@ pub async fn reset_sampler(data: Option<Value>, state: SharedState) -> Result<Va
                     ))?
                     .to_string(),
             )
-            .await
             .map(|_| Value::Null)
     } else {
         Err(Error::msg("Field data is needed to specify sampler id!"))
