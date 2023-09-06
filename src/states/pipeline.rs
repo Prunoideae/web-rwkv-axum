@@ -5,10 +5,14 @@ use tokio::{
 };
 use web_rwkv::{
     context::Context,
-    model::{Model, ModelState},
+    model::{BackedState, Model, ModelState},
+    tensor::shape::Shape,
 };
 
-use crate::config::ModelConfig;
+use crate::{
+    config::ModelConfig,
+    helper::{Logits, State},
+};
 
 use super::infer::{InferContext, InferRequest, InferResult};
 
@@ -49,7 +53,7 @@ impl Slots<'_, '_> {
 
     /// Inserts a request into the batch
     /// Also uploads the state to the buffer
-    fn insert(&mut self, request: InferRequest, model: &Model<'_, '_>) {
+    fn insert(&mut self, request: InferRequest, model: &Model<'_, '_>) -> Result<()> {
         if self.is_full() {
             panic!("Batch is full while inserting new requests!")
         }
@@ -66,20 +70,47 @@ impl Slots<'_, '_> {
             if self.slots[idx].is_none() {
                 self.slots[idx] = callback;
                 self.batch_tokens[idx] = tokens;
-
-                if let Some(state) = state {
-                    // TODO: Uploads the state to the model state
+                let info = model.info();
+                let backed_state = if let Some(state) = state {
+                    let shape = Shape::new(info.num_emb, 5 * info.num_layers, 1);
+                    BackedState {
+                        shape,
+                        data: state.0,
+                    }
                 } else {
-                    //TODO: Uploads an empty state
-                }
+                    BackedState::new(info, 1)
+                };
+                self.batch.load_batch(&backed_state, idx)?;
                 break;
             }
         }
-        todo!()
+        Ok(())
     }
 
     /// Infer until any of the batch is completed.
-    async fn infer(&mut self) {}
+    async fn infer(&mut self) -> Result<()> {
+        let logits = loop {
+            let logits_internal = self
+                .model
+                .run(&mut self.batch_tokens, &self.batch)
+                .expect("Failed to run infer!");
+            if logits_internal.iter().any(|l| !l.is_empty()) {
+                break logits_internal;
+            }
+        };
+
+        for idx in 0..self.batch_count {
+            if !logits[idx].is_empty() {
+                let result = InferResult {
+                    logits: Logits(logits[idx].clone()),
+                    state: State(self.batch.back_batch(idx)?.data),
+                };
+
+                self.finish(idx, result)?
+            }
+        }
+        Ok(())
+    }
 
     /// Finishs a request by sending back the result.
     fn finish(&mut self, index: usize, result: InferResult) -> Result<()> {
@@ -92,6 +123,8 @@ impl Slots<'_, '_> {
     }
 }
 
+/// The pipeline.
+/// Currently holds no data, might hold some data later.
 pub struct Pipeline();
 
 impl Pipeline {
@@ -115,27 +148,27 @@ impl Pipeline {
                 // When something arrives in the channel.
                 // This has an assumption that the batch is empty. (just initialized/ finished all inference)
                 if let Some(request) = receiver.recv().await {
-                    slots.insert(request, &model);
+                    slots.insert(request, &model)?;
 
                     // Start an infer loop until all slots are done again with no incoming requests
                     loop {
                         // Insert until slots full or no more requests
                         for _ in 0..slots.get_remained() {
                             if let Ok(request) = receiver.try_recv() {
-                                slots.insert(request, &model);
+                                slots.insert(request, &model)?;
                             } else {
                                 break; // We just continue with current slots
                             }
                         }
 
                         // Infer till at least 1 slot is done
-                        slots.infer().await;
+                        slots.infer().await?;
 
                         // Check if any more requests are coming during the infer
                         // If yes, insert and continue
                         // If no, continue with current batches until all are clear
                         if let Ok(request) = receiver.try_recv() {
-                            slots.insert(request, &model);
+                            slots.insert(request, &model)?;
                         } else if slots.is_clear() {
                             break;
                         }

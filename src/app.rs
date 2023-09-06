@@ -40,7 +40,7 @@ impl AppState {
     }
 
     pub async fn update_state(&self, id: String, tokens: Vec<u16>) -> Result<()> {
-        // TODO: Implement state update
+        let _ = self.infer(id, tokens).await?;
         Ok(())
     }
 

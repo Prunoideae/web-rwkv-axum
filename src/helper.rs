@@ -1,6 +1,6 @@
 
 #[derive(Debug, Clone)]
-pub struct Logits(Vec<f32>);
+pub struct Logits(pub Vec<f32>);
 
 impl Logits {
     pub fn len(&self) -> usize {
