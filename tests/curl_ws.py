@@ -9,12 +9,6 @@ import asyncio
 import json
 from random import randint
 
-queries = 100000
-payload = {
-    "echo_id": None,
-    "command": "echo",
-    "data": "The red is sus",
-}
 
 uri = "ws://127.0.0.1:5678/ws"
 

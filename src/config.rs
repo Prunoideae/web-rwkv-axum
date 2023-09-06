@@ -108,7 +108,7 @@ impl ModelSpec {
         .await?)
     }
 
-    pub async fn load_model<'a>(&self, context: &'a Context) -> Result<Model<'a, '_>> {
+    pub async fn load_model(&self, context: &Context) -> Result<Model<'static>> {
         let file = File::open(&self.path).await?;
         let map = unsafe { Mmap::map(&file)? };
         let quant = self

@@ -22,6 +22,6 @@ mod tests {
     async fn test_model() {
         let config = get_config();
         let context = config.model.create_context().await.unwrap();
-        let model = config.model.load_model(&context).await.unwrap();
+        let _ = config.model.load_model(&context).await.unwrap();
     }
 }

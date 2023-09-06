@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::{Error, Result};
 use tokio::{
     sync::{mpsc, oneshot},
@@ -16,24 +18,20 @@ use crate::{
 
 use super::infer::{InferContext, InferRequest, InferResult};
 
-struct Slots<'a, 'b> {
+struct Slots<'b> {
     slots: Vec<Option<oneshot::Sender<InferResult>>>,
     batch_tokens: Vec<Vec<u16>>,
-    batch: ModelState<'a>,
-    model: &'a Model<'a, 'b>,
+    batch: ModelState,
+    model: Arc<Model<'b>>,
     batch_count: usize,
 }
 
-impl Slots<'_, '_> {
-    fn new<'a, 'b>(
-        batch_count: usize,
-        context: &'a Context,
-        model: &'a Model<'a, 'b>,
-    ) -> Slots<'a, 'b> {
+impl Slots<'_> {
+    fn new<'b>(batch_count: usize, context: &Context, model: Arc<Model<'b>>) -> Slots<'b> {
         Slots {
             slots: (0..batch_count).map(|_| None).collect(),
             batch_tokens: (0..batch_count).map(|_| Vec::new()).collect(),
-            batch: ModelState::new(context, model.info(), batch_count),
+            batch: ModelState::new(&context, model.info(), batch_count),
             model,
             batch_count,
         }
@@ -53,7 +51,7 @@ impl Slots<'_, '_> {
 
     /// Inserts a request into the batch
     /// Also uploads the state to the buffer
-    fn insert(&mut self, request: InferRequest, model: &Model<'_, '_>) -> Result<()> {
+    fn insert(&mut self, request: InferRequest) -> Result<()> {
         if self.is_full() {
             panic!("Batch is full while inserting new requests!")
         }
@@ -70,7 +68,7 @@ impl Slots<'_, '_> {
             if self.slots[idx].is_none() {
                 self.slots[idx] = callback;
                 self.batch_tokens[idx] = tokens;
-                let info = model.info();
+                let info = self.model.info();
                 let backed_state = if let Some(state) = state {
                     let shape = Shape::new(info.num_emb, 5 * info.num_layers, 1);
                     BackedState {
@@ -105,7 +103,6 @@ impl Slots<'_, '_> {
                     logits: Logits(logits[idx].clone()),
                     state: State(self.batch.back_batch(idx)?.data),
                 };
-
                 self.finish(idx, result)?
             }
         }
@@ -141,21 +138,21 @@ impl Pipeline {
 
         let handle = tokio::spawn(async move {
             let context = config.model.create_context().await.unwrap();
-            let model = config.model.load_model(&context).await.unwrap();
+            let model = Arc::new(config.model.load_model(&context).await.unwrap());
             println!("Model is loaded!");
-            let mut slots = Slots::new(config.model.get_batch_size(), &context, &model);
+            let mut slots = Slots::new(config.model.get_batch_size(), &context, model.clone());
             loop {
                 // When something arrives in the channel.
                 // This has an assumption that the batch is empty. (just initialized/ finished all inference)
                 if let Some(request) = receiver.recv().await {
-                    slots.insert(request, &model)?;
+                    slots.insert(request)?;
 
                     // Start an infer loop until all slots are done again with no incoming requests
                     loop {
                         // Insert until slots full or no more requests
                         for _ in 0..slots.get_remained() {
                             if let Ok(request) = receiver.try_recv() {
-                                slots.insert(request, &model)?;
+                                slots.insert(request)?;
                             } else {
                                 break; // We just continue with current slots
                             }
@@ -168,7 +165,7 @@ impl Pipeline {
                         // If yes, insert and continue
                         // If no, continue with current batches until all are clear
                         if let Ok(request) = receiver.try_recv() {
-                            slots.insert(request, &model)?;
+                            slots.insert(request)?;
                         } else if slots.is_clear() {
                             break;
                         }

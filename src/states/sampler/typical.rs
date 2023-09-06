@@ -23,7 +23,7 @@ impl Sampler for TypicalSampler {
 
     fn clear(&mut self) {}
 
-    fn update(&mut self, tokens: &Vec<Vec<u16>>) {}
+    fn update(&mut self, _tokens: &Vec<Vec<u16>>) {}
 
     fn clone(&self) -> Box<dyn Sampler> {
         Box::new(Self {
@@ -33,7 +33,7 @@ impl Sampler for TypicalSampler {
     }
 }
 
-pub fn initialize_typical(state: SharedState, data: Option<Value>) -> Result<Box<dyn Sampler>> {
+pub fn initialize_typical(_state: SharedState, data: Option<Value>) -> Result<Box<dyn Sampler>> {
     let mut top_p: f32 = 0.6;
     let mut temp: f32 = 1.0;
 
