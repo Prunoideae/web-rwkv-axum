@@ -8,7 +8,7 @@ use web_rwkv_axum::{
     app::{AppState, SharedState},
     cli::LaunchArgs,
     routes::{hello_world, ws},
-    states::pipeline::Pipeline,
+    states::{pipeline::Pipeline, softmax::Softmax},
 };
 
 async fn app(args: LaunchArgs) -> Result<()> {
@@ -16,7 +16,9 @@ async fn app(args: LaunchArgs) -> Result<()> {
 
     let context = model_config.model.create_context().await?;
     let model = Arc::new(model_config.model.load_model(&context).await?);
+    let softmax = Softmax::new(model.clone(), model_config.model.get_batch_size()).await;
 
+    let (softmax_sender, softmax_handle) = softmax.run().await;
     let (infer_sender, model_handle) = Pipeline::start(
         model_config.model.get_batch_size(),
         context.clone(),
@@ -28,6 +30,7 @@ async fn app(args: LaunchArgs) -> Result<()> {
         AppState::new(
             &model_config,
             infer_sender.clone(),
+            softmax_sender.clone(),
             context.clone(),
             model.clone(),
         )
@@ -44,7 +47,9 @@ async fn app(args: LaunchArgs) -> Result<()> {
         .await?;
 
     drop(infer_sender);
+    drop(softmax_sender);
     model_handle.await??;
+    softmax_handle.await??;
     Ok(())
 }
 

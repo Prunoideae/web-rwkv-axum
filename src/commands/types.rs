@@ -22,7 +22,7 @@ impl CommandError {
         Self {
             echo_id: None,
             status: "error",
-            error: error.to_string(),
+            error: format!("{}", error.to_string()),
         }
     }
 }

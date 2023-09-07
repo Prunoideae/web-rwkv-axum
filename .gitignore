@@ -1,2 +1,5 @@
 /target
 /assets
+commands.txt
+flamegraph.svg
+perf.data

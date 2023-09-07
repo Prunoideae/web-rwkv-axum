@@ -8,8 +8,9 @@ from time import time
 import asyncio
 import json
 from random import randint
+import sys
 
-
+prompt = " ".join(sys.argv[1:])
 uri = "ws://127.0.0.1:5678/ws"
 state_name = str(randint(0, 2**31))
 sampler_name = str(randint(0, 2**31))
@@ -42,7 +43,7 @@ commands = [
     [
         "infer",
         {
-            "tokens": [f"Sample Name: {randint(0,2**32)}\nThe patient"],
+            "tokens": [prompt],
             "states": [state_name],
             "transformers": [[]],
             "sampler": sampler_name,
@@ -53,7 +54,7 @@ commands = [
 
 payload = {}
 
-repeats = 150
+repeats = 1000
 
 
 async def main():
@@ -62,7 +63,7 @@ async def main():
             result = await invoke_command(ws, command, payload)
             if "error" not in result:
                 result = result["result"]
-                print(result, flush=True, end="")
+                print(result, flush=True)
             else:
                 print(result)
 
@@ -78,7 +79,7 @@ async def main():
             }
             data["tokens"] = [result]
             result = (await invoke_command(ws, "infer", data))["result"]
-            print(result, flush=True, end="")
+            # print(result, flush=True, end="")
         elapsed = time() - start
         print(f"\nEnded in {elapsed:2f}s, tps: {repeats/elapsed:.2f}")
 

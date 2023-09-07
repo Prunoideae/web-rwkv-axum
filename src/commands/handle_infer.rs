@@ -43,8 +43,7 @@ async fn infer_and_sample(
         .map(|(logits, t_ids)| transform_logits(app_state.clone(), logits, t_ids))
         .collect::<Result<Vec<_>>>()?;
 
-    let probs = app_state.model.softmax(logits)?;
-
+    let probs = app_state.softmax(logits).await?;
     return app_state.samplers.sample_token(sampler, probs);
 }
 

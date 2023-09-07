@@ -1,0 +1,94 @@
+use anyhow::{Error, Result};
+use std::{sync::Arc, time::Duration};
+
+use tokio::{
+    sync::{mpsc, oneshot},
+    task::JoinHandle,
+};
+use web_rwkv::model::Model;
+
+pub struct Softmax {
+    model: Arc<Model<'static>>,
+    max_batch_size: usize,
+}
+
+impl Softmax {
+    pub async fn new(model: Arc<Model<'static>>, max_batch_size: usize) -> Self {
+        Self {
+            model,
+            max_batch_size,
+        }
+    }
+
+    async fn softmax_loop(
+        &self,
+        mut receiver: mpsc::Receiver<Vec<(Vec<f32>, oneshot::Sender<Vec<f32>>)>>,
+    ) -> Result<()> {
+        let mut queue = Vec::with_capacity(self.max_batch_size);
+        while let Some(requests) = receiver.recv().await {
+            queue.extend(requests);
+            while let Ok(requests) = receiver.try_recv() {
+                queue.extend(requests);
+                if queue.len() >= self.max_batch_size {
+                    break;
+                }
+            }
+
+            let (softmax_queue, sender_queue): (Vec<Vec<f32>>, Vec<oneshot::Sender<Vec<f32>>>) =
+                queue
+                    .split_off(if self.max_batch_size > queue.len() {
+                        0
+                    } else {
+                        queue.len() - self.max_batch_size
+                    })
+                    .into_iter()
+                    .unzip();
+            let softmax_queue = self.model.softmax(softmax_queue)?;
+            softmax_queue
+                .into_iter()
+                .zip(sender_queue.into_iter())
+                .map(|(result, sender)| {
+                    sender
+                        .send(result)
+                        .map_err(|_| Error::msg("Can't send data due to channel is dropped!"))
+                })
+                .collect::<Result<Vec<_>>>()?;
+        }
+        Ok(())
+    }
+
+    pub async fn run(
+        self,
+    ) -> (
+        mpsc::Sender<Vec<(Vec<f32>, oneshot::Sender<Vec<f32>>)>>,
+        JoinHandle<Result<()>>,
+    ) {
+        let (sender, receiver) = mpsc::channel(self.max_batch_size);
+        (
+            sender,
+            tokio::spawn(async move { self.softmax_loop(receiver).await }),
+        )
+    }
+
+    pub async fn softmax(
+        logits: Vec<Vec<f32>>,
+        sender: mpsc::Sender<Vec<(Vec<f32>, oneshot::Sender<Vec<f32>>)>>,
+    ) -> Result<Vec<Vec<f32>>> {
+        let (receivers, requests): (
+            Vec<oneshot::Receiver<Vec<f32>>>,
+            Vec<(Vec<f32>, oneshot::Sender<Vec<f32>>)>,
+        ) = logits
+            .into_iter()
+            .map(|logits| {
+                let (sender, receiver) = oneshot::channel();
+                (receiver, (logits, sender))
+            })
+            .unzip();
+        sender.send(requests).await?;
+        let mut results = Vec::with_capacity(receivers.len());
+        for receiver in receivers {
+            results.push(receiver.await.unwrap());
+        }
+        Ok(results)
+    }
+}

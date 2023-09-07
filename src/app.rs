@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::{Error, Ok, Result};
 use dashmap::DashMap;
-use tokio::sync::mpsc::Sender;
+use tokio::sync::{mpsc::Sender, oneshot};
 use web_rwkv::{context::Context, model::Model, tokenizer::Tokenizer};
 
 use crate::{
@@ -11,6 +11,7 @@ use crate::{
     states::{
         infer::{InferContext, InferRequest, InferResult},
         sampler::Samplers,
+        softmax::Softmax,
         transformer::Transformers,
     },
 };
@@ -21,6 +22,7 @@ pub struct AppState {
     pub samplers: Arc<Samplers>,
     pub transformers: Arc<Transformers>,
     infer_queue: Sender<Vec<InferRequest>>,
+    softmax_queue: Sender<Vec<(Vec<f32>, oneshot::Sender<Vec<f32>>)>>,
     // State holders
     // Can be None to represent state not created by pipeline yet
     infer_states: Arc<DashMap<String, Option<State>>>,
@@ -32,7 +34,8 @@ pub struct AppState {
 impl AppState {
     pub async fn new(
         config: &ModelConfig,
-        queue: Sender<Vec<InferRequest>>,
+        infer_queue: Sender<Vec<InferRequest>>,
+        softmax_queue: Sender<Vec<(Vec<f32>, oneshot::Sender<Vec<f32>>)>>,
         context: Context,
         model: Arc<Model<'static>>,
     ) -> Result<Self> {
@@ -40,7 +43,8 @@ impl AppState {
             config: config.clone(),
             samplers: Arc::new(Samplers::new()),
             transformers: Arc::new(Transformers::new()),
-            infer_queue: queue,
+            infer_queue,
+            softmax_queue,
             infer_states: Arc::new(DashMap::with_capacity(128)),
             tokenizer: Arc::new(config.tokenizer.load_tokenizer().await?),
             context,
@@ -123,6 +127,10 @@ impl AppState {
                 logits
             })
             .collect())
+    }
+
+    pub async fn softmax(&self, logits: Vec<Vec<f32>>) -> Result<Vec<Vec<f32>>> {
+        Softmax::softmax(logits, self.softmax_queue.clone()).await
     }
 }
 
