@@ -11,26 +11,25 @@ from random import randint
 
 
 uri = "ws://127.0.0.1:5678/ws"
+state_name = str(randint(0, 2**31))
+sampler_name = str(randint(0, 2**31))
 
 
 async def invoke_command(ws: WebSocketClientProtocol, command: str, payload: Any):
     echo_id = str(randint(0, 2**31))
     payload = {"echo_id": echo_id, "command": command, "data": payload}
     await ws.send(json.dumps(payload))
-    start = time()
     result = json.loads(await ws.recv())
-    elapsed = time() - start
-    print(f"\n{elapsed*1000:.1f}ms, tps: {1/elapsed}")
     return result
 
 
 commands = [
     ["echo", "sus"],
-    ["create_state", "sussy_baka"],
+    ["create_state", state_name],
     [
         "create_sampler",
         {
-            "id": "sampler_test",
+            "id": sampler_name,
             "data": {
                 "type_id": "typical",
                 "params": {
@@ -43,10 +42,10 @@ commands = [
     [
         "infer",
         {
-            "tokens": ["lorem ipsum dolor sit amet, con"],
-            "states": ["sussy_baka"],
+            "tokens": [f"Sample Name: {randint(0,2**32)}\nThe patient"],
+            "states": [state_name],
             "transformers": [[]],
-            "sampler": "sampler_test",
+            "sampler": sampler_name,
             "update_prompt": True,
         },
     ],
@@ -54,7 +53,7 @@ commands = [
 
 payload = {}
 
-repeats = 500
+repeats = 150
 
 
 async def main():
@@ -67,20 +66,24 @@ async def main():
             else:
                 print(result)
 
+        start = time()
+
         for i in range(repeats):
             data = {
                 "tokens": None,
-                "states": ["sussy_baka"],
+                "states": [state_name],
                 "transformers": [[]],
-                "sampler": "sampler_test",
+                "sampler": sampler_name,
                 "update_prompt": True,
             }
             data["tokens"] = [result]
             result = (await invoke_command(ws, "infer", data))["result"]
             print(result, flush=True, end="")
+        elapsed = time() - start
+        print(f"\nEnded in {elapsed:2f}s, tps: {repeats/elapsed:.2f}")
 
-        await invoke_command(ws, "delete_state", "sussy_baka")
-        await invoke_command(ws, "delete_sampler", "sampler_test")
+        await invoke_command(ws, "delete_state", state_name)
+        await invoke_command(ws, "delete_sampler", sampler_name)
 
 
 if __name__ == "__main__":

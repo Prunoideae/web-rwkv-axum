@@ -11,23 +11,20 @@ use web_rwkv::{
     tensor::shape::Shape,
 };
 
-use crate::{
-    config::ModelConfig,
-    helper::{Logits, State},
-};
+use crate::helper::{Logits, State};
 
 use super::infer::{InferContext, InferRequest, InferResult};
 
-struct Slots<'b> {
+struct Slots {
     slots: Vec<Option<oneshot::Sender<InferResult>>>,
     batch_tokens: Vec<Vec<u16>>,
     batch: ModelState,
-    model: Arc<Model<'b>>,
+    model: Arc<Model<'static>>,
     batch_count: usize,
 }
 
-impl Slots<'_> {
-    fn new<'b>(batch_count: usize, context: &Context, model: Arc<Model<'b>>) -> Slots<'b> {
+impl Slots {
+    fn new(batch_count: usize, context: &Context, model: Arc<Model<'static>>) -> Slots {
         Slots {
             slots: (0..batch_count).map(|_| None).collect(),
             batch_tokens: (0..batch_count).map(|_| Vec::new()).collect(),
@@ -35,10 +32,6 @@ impl Slots<'_> {
             model,
             batch_count,
         }
-    }
-
-    fn get_remained(&self) -> usize {
-        self.slots.iter().filter(|x| x.is_none()).count()
     }
 
     fn is_full(&self) -> bool {
@@ -125,49 +118,80 @@ impl Slots<'_> {
 pub struct Pipeline();
 
 impl Pipeline {
+    #[inline(always)]
+    fn load_or_queue(
+        requests: Vec<InferRequest>,
+        slots: &mut Slots,
+        queue: &mut Vec<InferRequest>,
+    ) -> Result<()> {
+        for request in requests {
+            if slots.is_full() {
+                queue.push(request);
+            } else {
+                slots.insert(request)?;
+            }
+        }
+        Ok(())
+    }
+
     /// Runs the pipeline, this should be used internally.
     ///
     /// Use `Pipeline::start` instead.
-
     pub async fn start(
-        config: &ModelConfig,
-    ) -> (mpsc::Sender<InferRequest>, JoinHandle<Result<()>>) {
-        let (sender, mut receiver) =
-            mpsc::channel::<InferRequest>(config.model.get_batch_size() * 64);
-        let config = config.clone();
-
+        batch_size: usize,
+        context: Context,
+        model: Arc<Model<'static>>,
+    ) -> (mpsc::Sender<Vec<InferRequest>>, JoinHandle<Result<()>>) {
+        let (sender, mut receiver) = mpsc::channel::<Vec<InferRequest>>(batch_size);
         let handle = tokio::spawn(async move {
-            let context = config.model.create_context().await.unwrap();
-            let model = Arc::new(config.model.load_model(&context).await.unwrap());
             println!("Model is loaded!");
-            let mut slots = Slots::new(config.model.get_batch_size(), &context, model.clone());
+            let mut slots = Slots::new(batch_size, &context, model.clone());
+            let mut queued_requests: Vec<InferRequest> = Vec::new();
             loop {
                 // When something arrives in the channel.
                 // This has an assumption that the batch is empty. (just initialized/ finished all inference)
-                if let Some(request) = receiver.recv().await {
-                    slots.insert(request)?;
+                if let Some(requests) = receiver.recv().await {
+                    // Load the requests onto slots, if slot is full, load to internal queue
+                    // instead
+                    Pipeline::load_or_queue(requests, &mut slots, &mut queued_requests)?;
 
                     // Start an infer loop until all slots are done again with no incoming requests
                     loop {
                         // Insert until slots full or no more requests
-                        for _ in 0..slots.get_remained() {
-                            if let Ok(request) = receiver.try_recv() {
-                                slots.insert(request)?;
-                            } else {
-                                break; // We just continue with current slots
+                        if !slots.is_full() {
+                            if let Ok(requests) = receiver.try_recv() {
+                                Pipeline::load_or_queue(
+                                    requests,
+                                    &mut slots,
+                                    &mut queued_requests,
+                                )?;
                             }
                         }
 
                         // Infer till at least 1 slot is done
                         slots.infer().await?;
 
+                        // Release queued requests into the slots
+                        while let Some(queued) = queued_requests.pop() {
+                            slots.insert(queued)?;
+                            if slots.is_full() {
+                                break;
+                            }
+                        }
+
                         // Check if any more requests are coming during the infer
                         // If yes, insert and continue
                         // If no, continue with current batches until all are clear
-                        if let Ok(request) = receiver.try_recv() {
-                            slots.insert(request)?;
-                        } else if slots.is_clear() {
-                            break;
+                        if !slots.is_full() {
+                            if let Ok(requests) = receiver.try_recv() {
+                                Pipeline::load_or_queue(
+                                    requests,
+                                    &mut slots,
+                                    &mut queued_requests,
+                                )?;
+                            } else if slots.is_clear() {
+                                break;
+                            }
                         }
                     }
                 } else {

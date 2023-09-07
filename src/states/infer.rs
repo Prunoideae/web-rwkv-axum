@@ -27,12 +27,23 @@ pub struct InferRequest {
 impl InferRequest {
     /// Queue an infer request to the pipeline.
     pub async fn send(
-        context: InferContext,
-        sender: mpsc::Sender<InferRequest>,
-    ) -> Result<InferResult> {
-        let (callback, receiver) = oneshot::channel();
-        let request = InferRequest { context, callback };
-        sender.send(request).await?;
-        Ok(receiver.await?)
+        contexts: Vec<InferContext>,
+        sender: mpsc::Sender<Vec<InferRequest>>,
+    ) -> Result<Vec<InferResult>> {
+        let (receivers, requests): (Vec<oneshot::Receiver<InferResult>>, Vec<InferRequest>) =
+            contexts
+                .into_iter()
+                .map(|context| {
+                    let (callback, receiver) = oneshot::channel();
+                    (receiver, InferRequest { context, callback })
+                })
+                .unzip();
+
+        sender.send(requests).await?;
+        let mut results = Vec::new();
+        for receiver in receivers {
+            results.push(receiver.await?);
+        }
+        Ok(results)
     }
 }

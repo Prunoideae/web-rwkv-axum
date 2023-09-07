@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::{Error, Ok, Result};
 use dashmap::DashMap;
 use tokio::sync::mpsc::Sender;
-use web_rwkv::tokenizer::Tokenizer;
+use web_rwkv::{context::Context, model::Model, tokenizer::Tokenizer};
 
 use crate::{
     config::ModelConfig,
@@ -20,15 +20,22 @@ pub struct AppState {
     pub config: ModelConfig,
     pub samplers: Arc<Samplers>,
     pub transformers: Arc<Transformers>,
-    infer_queue: Sender<InferRequest>,
+    infer_queue: Sender<Vec<InferRequest>>,
     // State holders
     // Can be None to represent state not created by pipeline yet
     infer_states: Arc<DashMap<String, Option<State>>>,
     pub tokenizer: Arc<Tokenizer>,
+    pub context: Context,
+    pub model: Arc<Model<'static>>,
 }
 
 impl AppState {
-    pub async fn new(config: &ModelConfig, queue: Sender<InferRequest>) -> Result<Self> {
+    pub async fn new(
+        config: &ModelConfig,
+        queue: Sender<Vec<InferRequest>>,
+        context: Context,
+        model: Arc<Model<'static>>,
+    ) -> Result<Self> {
         Ok(AppState {
             config: config.clone(),
             samplers: Arc::new(Samplers::new()),
@@ -36,10 +43,12 @@ impl AppState {
             infer_queue: queue,
             infer_states: Arc::new(DashMap::with_capacity(128)),
             tokenizer: Arc::new(config.tokenizer.load_tokenizer().await?),
+            context,
+            model,
         })
     }
 
-    pub async fn update_state(&self, id: String, tokens: Vec<u16>) -> Result<()> {
+    pub async fn update_state(&self, id: Vec<String>, tokens: Vec<Vec<u16>>) -> Result<()> {
         let _ = self.infer(id, tokens).await?;
         Ok(())
     }
@@ -81,17 +90,39 @@ impl AppState {
         Ok(self.tokenizer.encode(&input)?)
     }
 
-    pub async fn infer(&self, state_key: String, tokens: Vec<u16>) -> Result<Logits> {
-        let state = self
-            .infer_states
-            .get(&state_key)
-            .ok_or(Error::msg(format!("State {} doesn't exist!", state_key)))?
-            .clone();
-        let context = InferContext { state, tokens };
-        let InferResult { state, logits } =
-            InferRequest::send(context, self.infer_queue.clone()).await?;
-        self.infer_states.insert(state_key, Some(state));
-        Ok(logits)
+    pub async fn infer(
+        &self,
+        state_keys: Vec<String>,
+        token_vecs: Vec<Vec<u16>>,
+    ) -> Result<Vec<Logits>> {
+        let states = state_keys
+            .iter()
+            .map(|key| {
+                self.infer_states
+                    .get(key)
+                    .ok_or(Error::msg(format!("State {} doesn't exist!", key)))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let requests = states
+            .into_iter()
+            .zip(token_vecs.into_iter())
+            .map(|(state, tokens)| InferContext {
+                state: state.clone(),
+                tokens,
+            })
+            .collect();
+
+        let results = InferRequest::send(requests, self.infer_queue.clone()).await?;
+
+        Ok(results
+            .into_iter()
+            .zip(state_keys.into_iter())
+            .map(|(InferResult { state, logits }, state_key)| {
+                self.infer_states.insert(state_key, Some(state));
+                logits
+            })
+            .collect())
     }
 }
 

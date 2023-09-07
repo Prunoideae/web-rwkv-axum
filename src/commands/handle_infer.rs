@@ -3,11 +3,7 @@ use rayon::prelude::*;
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::{
-    app::SharedState,
-    commands::helpers,
-    helper::{self},
-};
+use crate::{app::SharedState, commands::helpers};
 
 #[derive(Debug, Deserialize)]
 struct InferPayload {
@@ -18,22 +14,19 @@ struct InferPayload {
     update_prompt: bool,
 }
 
-async fn infer_single(
+fn transform_logits(
     app_state: SharedState,
-    state_id: String,
-    transformers: Vec<String>,
-    tokens: Vec<u16>,
+    logits: Vec<f32>,
+    transformers: &Vec<String>,
 ) -> Result<Vec<f32>> {
-    let mut logits = app_state.infer(state_id, tokens).await?;
-    transformers.iter().for_each(|t_id| {
+    let mut logits = logits;
+    for transformer in transformers {
         app_state
             .transformers
-            .transform_logits(t_id, &mut logits.0)
-            .unwrap();
-    });
-    Ok(helper::softmax(logits))
+            .transform_logits(transformer, &mut logits)?
+    }
+    Ok(logits)
 }
-
 async fn infer_and_sample(
     app_state: SharedState,
     state_ids: &Vec<String>,
@@ -41,27 +34,16 @@ async fn infer_and_sample(
     tokens: Vec<Vec<u16>>,
     sampler: &String,
 ) -> Result<u16> {
-    let futures = state_ids
-        .iter()
-        .zip(transformers.iter())
-        .zip(tokens.into_iter())
-        .map(|((state_id, transformers), tokens)| {
-            tokio::spawn(infer_single(
-                app_state.clone(),
-                state_id.clone(),
-                transformers.clone(),
-                tokens,
-            ))
-        })
-        .collect::<Vec<_>>();
+    let logits = app_state
+        .infer(state_ids.clone(), tokens)
+        .await?
+        .into_par_iter()
+        .map(|x| x.0)
+        .zip(transformers.par_iter())
+        .map(|(logits, t_ids)| transform_logits(app_state.clone(), logits, t_ids))
+        .collect::<Result<Vec<_>>>()?;
 
-    let probs = {
-        let mut logits = Vec::with_capacity(state_ids.len());
-        for handle in futures {
-            logits.push(handle.await??);
-        }
-        logits
-    };
+    let probs = app_state.model.softmax(logits)?;
 
     return app_state.samplers.sample_token(sampler, probs);
 }

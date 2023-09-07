@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::{Ok, Result};
 use axum::{routing::get, Router};
 use clap::Parser;
@@ -11,9 +13,26 @@ use web_rwkv_axum::{
 
 async fn app(args: LaunchArgs) -> Result<()> {
     let model_config = args.get_config()?;
-    let (infer_sender, model_handle) = Pipeline::start(&model_config).await;
 
-    let shared_state = SharedState::new(AppState::new(&model_config, infer_sender.clone()).await?);
+    let context = model_config.model.create_context().await?;
+    let model = Arc::new(model_config.model.load_model(&context).await?);
+
+    let (infer_sender, model_handle) = Pipeline::start(
+        model_config.model.get_batch_size(),
+        context.clone(),
+        model.clone(),
+    )
+    .await;
+
+    let shared_state = SharedState::new(
+        AppState::new(
+            &model_config,
+            infer_sender.clone(),
+            context.clone(),
+            model.clone(),
+        )
+        .await?,
+    );
 
     let app = Router::new()
         .route("/", get(hello_world::handler))
