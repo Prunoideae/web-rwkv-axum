@@ -56,6 +56,7 @@ payload = {}
 
 repeats = 500
 
+
 async def main():
     async with connect(uri) as ws:
         for command, payload in commands:
@@ -66,7 +67,7 @@ async def main():
             else:
                 print(result)
 
-        start = time()
+        elapsed = 0
 
         for i in range(repeats):
             data = {
@@ -77,10 +78,12 @@ async def main():
                 "update_prompt": True,
             }
             data["tokens"] = [result]
-            result = (await invoke_command(ws, "infer", data))["result"]
+            result = await invoke_command(ws, "infer", data)
+            elapsed += result["duration_ms"]
+            result = result["result"]
             print(result, flush=True, end="")
-        elapsed = time() - start
-        print(f"\nEnded in {elapsed:2f}s, tps: {repeats/elapsed:.2f}")
+
+        print(f"\nEnded in {elapsed/1000:2f}s, tps: {repeats/(elapsed/1000):.2f}")
 
         await invoke_command(ws, "delete_state", state_name)
         await invoke_command(ws, "delete_sampler", sampler_name)

@@ -16,10 +16,9 @@ struct InferPayload {
 
 fn transform_logits(
     app_state: AppState,
-    logits: Vec<f32>,
+    mut logits: Vec<f32>,
     transformers: &Vec<String>,
 ) -> Result<Vec<f32>> {
-    let mut logits = logits;
     for transformer in transformers {
         app_state
             .0
@@ -28,6 +27,7 @@ fn transform_logits(
     }
     Ok(logits)
 }
+
 async fn infer_and_sample(
     app_state: AppState,
     state_ids: &Vec<String>,
