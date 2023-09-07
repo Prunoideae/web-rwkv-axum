@@ -3,7 +3,7 @@ use rayon::prelude::*;
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::{app::SharedState, commands::helpers};
+use crate::{app::AppState, commands::helpers};
 
 #[derive(Debug, Deserialize)]
 struct InferPayload {
@@ -15,20 +15,21 @@ struct InferPayload {
 }
 
 fn transform_logits(
-    app_state: SharedState,
+    app_state: AppState,
     logits: Vec<f32>,
     transformers: &Vec<String>,
 ) -> Result<Vec<f32>> {
     let mut logits = logits;
     for transformer in transformers {
         app_state
+            .0
             .transformers
             .transform_logits(transformer, &mut logits)?
     }
     Ok(logits)
 }
 async fn infer_and_sample(
-    app_state: SharedState,
+    app_state: AppState,
     state_ids: &Vec<String>,
     transformers: &Vec<Vec<String>>,
     tokens: Vec<Vec<u16>>,
@@ -44,10 +45,10 @@ async fn infer_and_sample(
         .collect::<Result<Vec<_>>>()?;
 
     let probs = app_state.softmax(logits).await?;
-    return app_state.samplers.sample_token(sampler, probs);
+    return app_state.0.samplers.sample_token(sampler, probs);
 }
 
-pub async fn infer(data: Option<Value>, state: SharedState) -> Result<Value> {
+pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
     if let Some(data) = data {
         let InferPayload {
             tokens,
@@ -64,12 +65,12 @@ pub async fn infer(data: Option<Value>, state: SharedState) -> Result<Value> {
         if transformers
             .iter()
             .flatten()
-            .any(|x| !state.transformers.has_transformer(x))
+            .any(|x| !state.0.transformers.has_transformer(x))
         {
             return Err(Error::msg("One or more transformer ids not exist!"));
         }
 
-        if !state.samplers.has_sampler(&sampler) {
+        if !state.0.samplers.has_sampler(&sampler) {
             return Err(Error::msg("Sampler id does not exist!"));
         }
 
@@ -84,11 +85,11 @@ pub async fn infer(data: Option<Value>, state: SharedState) -> Result<Value> {
                 .zip(tokens.par_iter())
                 .for_each(|(t_ids, tokens)| {
                     for t_id in t_ids {
-                        let _ = state.transformers.update_transformer(t_id, tokens);
+                        let _ = state.0.transformers.update_transformer(t_id, tokens);
                     }
                 });
 
-            let _ = state.samplers.update_sampler(&sampler, &tokens);
+            let _ = state.0.samplers.update_sampler(&sampler, &tokens);
         }
 
         let result = {
@@ -100,6 +101,7 @@ pub async fn infer(data: Option<Value>, state: SharedState) -> Result<Value> {
 
             loop {
                 if let Ok(Ok(result)) = state
+                    .0
                     .tokenizer
                     .decode(&out_tokens.as_slice())
                     .map(|x| String::from_utf8(x))

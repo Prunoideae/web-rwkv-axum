@@ -1,6 +1,7 @@
 use super::types::Sampler;
-use crate::app::SharedState;
+use crate::app::AppState;
 use anyhow::{Error, Ok, Result};
+use itertools::Itertools;
 use serde_json::Value;
 
 /// Typical sampler for logits
@@ -12,13 +13,30 @@ pub struct TypicalSampler {
 
 impl Sampler for TypicalSampler {
     fn sample(&self, probs: Vec<Vec<f32>>) -> Result<u16> {
-        Ok(probs[0]
-            .iter()
+        let probs = &probs[0];
+        let sorted = probs
+            .into_iter()
             .enumerate()
-            .skip(1)
-            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
-            .unwrap()
-            .0 as u16)
+            .sorted_unstable_by(|(_, x), (_, y)| x.total_cmp(&y).reverse())
+            .scan((0, 0.0), |(_, cum), (id, x)| {
+                if *cum > self.top_p {
+                    None
+                } else {
+                    *cum += x;
+                    Some((id, *cum))
+                }
+            })
+            .collect_vec();
+        let sum: f32 = sorted.iter().map(|(_, x)| x).sum();
+        let sorted = sorted.into_iter().map(|(id, x)| (id, x / sum));
+
+        let rand = fastrand::f32();
+        let token = sorted
+            .into_iter()
+            .find_or_first(|&(_, cum)| rand <= cum)
+            .map(|(id, _)| id)
+            .unwrap_or_default();
+        Ok(token as u16)
     }
 
     fn clear(&mut self) {}
@@ -33,7 +51,7 @@ impl Sampler for TypicalSampler {
     }
 }
 
-pub fn initialize_typical(_state: SharedState, data: Option<Value>) -> Result<Box<dyn Sampler>> {
+pub fn initialize_typical(_state: AppState, data: Option<Value>) -> Result<Box<dyn Sampler>> {
     let mut top_p: f32 = 0.6;
     let mut temp: f32 = 1.0;
 

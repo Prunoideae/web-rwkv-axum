@@ -1,0 +1,102 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'web_rwkv_axum'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=web-rwkv-axum"
+                ],
+                "filter": {
+                    "name": "web_rwkv_axum",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'web-rwkv-axum'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=web-rwkv-axum",
+                    "--package=web-rwkv-axum"
+                ],
+                "filter": {
+                    "name": "web-rwkv-axum",
+                    "kind": "bin"
+                }
+            },
+            "args": ["./config.toml"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'web-rwkv-axum'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=web-rwkv-axum",
+                    "--package=web-rwkv-axum"
+                ],
+                "filter": {
+                    "name": "web-rwkv-axum",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'test_load_config'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=test_load_config",
+                    "--package=web-rwkv-axum"
+                ],
+                "filter": {
+                    "name": "test_load_config",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'test_parse_config'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=test_parse_config",
+                    "--package=web-rwkv-axum"
+                ],
+                "filter": {
+                    "name": "test_parse_config",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

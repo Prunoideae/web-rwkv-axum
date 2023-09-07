@@ -54,8 +54,7 @@ commands = [
 
 payload = {}
 
-repeats = 1000
-
+repeats = 500
 
 async def main():
     async with connect(uri) as ws:
@@ -79,7 +78,7 @@ async def main():
             }
             data["tokens"] = [result]
             result = (await invoke_command(ws, "infer", data))["result"]
-            # print(result, flush=True, end="")
+            print(result, flush=True, end="")
         elapsed = time() - start
         print(f"\nEnded in {elapsed:2f}s, tps: {repeats/elapsed:.2f}")
 

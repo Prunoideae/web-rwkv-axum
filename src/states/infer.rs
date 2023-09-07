@@ -11,7 +11,6 @@ pub struct InferContext {
 
 #[derive(Debug)]
 pub struct InferResult {
-    pub state: State,
     pub logits: Logits,
 }
 
@@ -22,6 +21,8 @@ pub struct InferResult {
 pub struct InferRequest {
     pub context: InferContext,
     pub callback: oneshot::Sender<InferResult>,
+    pub state_id: String,
+    pub state_callback: oneshot::Sender<Option<State>>,
 }
 
 impl InferRequest {
@@ -29,13 +30,25 @@ impl InferRequest {
     pub async fn send(
         contexts: Vec<InferContext>,
         sender: mpsc::Sender<Vec<InferRequest>>,
+        state_ids: Vec<String>,
+        state_callbacks: Vec<oneshot::Sender<Option<State>>>,
     ) -> Result<Vec<InferResult>> {
         let (receivers, requests): (Vec<oneshot::Receiver<InferResult>>, Vec<InferRequest>) =
             contexts
                 .into_iter()
-                .map(|context| {
+                .zip(state_ids.into_iter())
+                .zip(state_callbacks.into_iter())
+                .map(|((context, id), state_callback)| {
                     let (callback, receiver) = oneshot::channel();
-                    (receiver, InferRequest { context, callback })
+                    (
+                        receiver,
+                        InferRequest {
+                            context,
+                            callback,
+                            state_id: id,
+                            state_callback,
+                        },
+                    )
                 })
                 .unzip();
 

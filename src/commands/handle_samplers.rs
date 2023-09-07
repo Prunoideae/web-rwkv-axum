@@ -2,7 +2,7 @@ use anyhow::{Error, Result};
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::app::SharedState;
+use crate::app::AppState;
 
 use super::helpers;
 
@@ -13,10 +13,11 @@ struct SamplerArgs {
 }
 
 #[inline]
-pub async fn create_sampler(data: Option<Value>, state: SharedState) -> Result<Value> {
+pub async fn create_sampler(data: Option<Value>, state: AppState) -> Result<Value> {
     if let Some(data) = data {
         let SamplerArgs { id, data } = serde_json::from_value(data)?;
         state
+            .0
             .samplers
             .create_sampler(id, state.clone(), data)
             .map(|_| Value::Null)
@@ -34,13 +35,14 @@ struct SamplerCopy {
 }
 
 #[inline]
-pub async fn copy_sampler(data: Option<Value>, state: SharedState) -> Result<Value> {
+pub async fn copy_sampler(data: Option<Value>, state: AppState) -> Result<Value> {
     if let Some(data) = data {
         let SamplerCopy {
             source,
             destination,
         } = serde_json::from_value(data)?;
         state
+            .0
             .samplers
             .copy_sampler(source, destination)
             .map(|_| Value::Null)
@@ -52,9 +54,10 @@ pub async fn copy_sampler(data: Option<Value>, state: SharedState) -> Result<Val
 }
 
 #[inline]
-pub async fn delete_sampler(data: Option<Value>, state: SharedState) -> Result<Value> {
+pub async fn delete_sampler(data: Option<Value>, state: AppState) -> Result<Value> {
     if let Some(data) = data {
         state
+            .0
             .samplers
             .delete_sampler(
                 data.as_str()
@@ -76,11 +79,12 @@ struct SamplerUpdate {
 }
 
 #[inline]
-pub async fn update_sampler(data: Option<Value>, state: SharedState) -> Result<Value> {
+pub async fn update_sampler(data: Option<Value>, state: AppState) -> Result<Value> {
     if let Some(data) = data {
         let SamplerUpdate { id, tokens } = serde_json::from_value(data)?;
         let tokens = helpers::to_token_vec(&state, tokens)?;
         state
+            .0
             .samplers
             .update_sampler(&id, &tokens)
             .map(|_| Value::Null)
@@ -92,9 +96,10 @@ pub async fn update_sampler(data: Option<Value>, state: SharedState) -> Result<V
 }
 
 #[inline]
-pub async fn reset_sampler(data: Option<Value>, state: SharedState) -> Result<Value> {
+pub async fn reset_sampler(data: Option<Value>, state: AppState) -> Result<Value> {
     if let Some(data) = data {
         state
+            .0
             .samplers
             .reset_sampler(
                 data.as_str()

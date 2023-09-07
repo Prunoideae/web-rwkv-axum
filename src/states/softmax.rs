@@ -1,5 +1,5 @@
 use anyhow::{Error, Result};
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use tokio::{
     sync::{mpsc, oneshot},
@@ -23,10 +23,11 @@ impl Softmax {
     async fn softmax_loop(
         &self,
         mut receiver: mpsc::Receiver<Vec<(Vec<f32>, oneshot::Sender<Vec<f32>>)>>,
-    ) -> Result<()> {
+    ) {
         let mut queue = Vec::with_capacity(self.max_batch_size);
         while let Some(requests) = receiver.recv().await {
             queue.extend(requests);
+
             while let Ok(requests) = receiver.try_recv() {
                 queue.extend(requests);
                 if queue.len() >= self.max_batch_size {
@@ -43,7 +44,7 @@ impl Softmax {
                     })
                     .into_iter()
                     .unzip();
-            let softmax_queue = self.model.softmax(softmax_queue)?;
+            let softmax_queue = self.model.softmax(softmax_queue).unwrap();
             softmax_queue
                 .into_iter()
                 .zip(sender_queue.into_iter())
@@ -52,16 +53,16 @@ impl Softmax {
                         .send(result)
                         .map_err(|_| Error::msg("Can't send data due to channel is dropped!"))
                 })
-                .collect::<Result<Vec<_>>>()?;
+                .collect::<Result<Vec<_>>>()
+                .unwrap();
         }
-        Ok(())
     }
 
     pub async fn run(
         self,
     ) -> (
         mpsc::Sender<Vec<(Vec<f32>, oneshot::Sender<Vec<f32>>)>>,
-        JoinHandle<Result<()>>,
+        JoinHandle<()>,
     ) {
         let (sender, receiver) = mpsc::channel(self.max_batch_size);
         (

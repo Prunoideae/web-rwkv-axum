@@ -2,7 +2,7 @@ use anyhow::{Error, Ok, Result};
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::{app::SharedState, register_handlers};
+use crate::{app::AppState, register_handlers};
 
 mod handle_infer;
 mod handle_samplers;
@@ -20,7 +20,7 @@ pub struct TextCommand {
 }
 
 impl TextCommand {
-    pub async fn handle(&self, state: SharedState) -> Result<Value> {
+    pub async fn handle(&self, state: AppState) -> Result<Value> {
         register_handlers!(
             self,
             state,

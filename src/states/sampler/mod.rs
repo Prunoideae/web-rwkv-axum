@@ -1,5 +1,5 @@
 use self::types::Sampler;
-use crate::{app::SharedState, hashmap_ex};
+use crate::{app::AppState, hashmap_ex};
 use anyhow::{Error, Ok, Result};
 use dashmap::{mapref::one::RefMut, DashMap};
 use serde::Deserialize;
@@ -17,7 +17,7 @@ struct SamplerJson {
 
 #[derive(Debug)]
 pub struct Samplers {
-    registry: HashMap<&'static str, fn(SharedState, Option<Value>) -> Result<Box<dyn Sampler>>>,
+    registry: HashMap<&'static str, fn(AppState, Option<Value>) -> Result<Box<dyn Sampler>>>,
     map: DashMap<String, Box<dyn Sampler>>,
 }
 
@@ -25,7 +25,7 @@ impl Samplers {
     pub fn new() -> Self {
         Samplers {
             registry: hashmap_ex! {
-                HashMap<&'static str, fn(SharedState, Option<Value>) -> Result<Box<dyn Sampler>>>,
+                HashMap<&'static str, fn(AppState, Option<Value>) -> Result<Box<dyn Sampler>>>,
                     {
                         "typical" => typical::initialize_typical
                     }
@@ -34,12 +34,7 @@ impl Samplers {
         }
     }
 
-    fn create(
-        &self,
-        key: &str,
-        state: SharedState,
-        data: Option<Value>,
-    ) -> Result<Box<dyn Sampler>> {
+    fn create(&self, key: &str, state: AppState, data: Option<Value>) -> Result<Box<dyn Sampler>> {
         let constructor = self.registry.get(key);
         if let Some(constructor) = constructor {
             Ok(constructor(state, data)?)
@@ -48,7 +43,7 @@ impl Samplers {
         }
     }
 
-    pub fn create_sampler(&self, id: String, state: SharedState, data: Value) -> Result<()> {
+    pub fn create_sampler(&self, id: String, state: AppState, data: Value) -> Result<()> {
         if self.map.contains_key(&id) {
             return Err(Error::msg("Sampler already existed!"));
         }

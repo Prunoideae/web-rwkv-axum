@@ -2,10 +2,10 @@ use anyhow::{Error, Result};
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::{app::SharedState, commands::helpers};
+use crate::{app::AppState, commands::helpers};
 
 #[inline]
-pub async fn create_state(data: Option<Value>, state: SharedState) -> Result<Value> {
+pub async fn create_state(data: Option<Value>, state: AppState) -> Result<Value> {
     if let Some(data) = data {
         state
             .create_state(
@@ -29,7 +29,7 @@ struct StateCopy {
 }
 
 #[inline]
-pub async fn copy_state(data: Option<Value>, state: SharedState) -> Result<Value> {
+pub async fn copy_state(data: Option<Value>, state: AppState) -> Result<Value> {
     if let Some(data) = data {
         let StateCopy {
             source,
@@ -47,7 +47,7 @@ pub async fn copy_state(data: Option<Value>, state: SharedState) -> Result<Value
 }
 
 #[inline]
-pub async fn delete_state(data: Option<Value>, state: SharedState) -> Result<Value> {
+pub async fn delete_state(data: Option<Value>, state: AppState) -> Result<Value> {
     if let Some(data) = data {
         state
             .delete_state(
@@ -71,7 +71,7 @@ struct StateUpdate {
 }
 
 #[inline]
-pub async fn update_state(data: Option<Value>, state: SharedState) -> Result<Value> {
+pub async fn update_state(data: Option<Value>, state: AppState) -> Result<Value> {
     if let Some(data) = data {
         let StateUpdate { id, tokens } = serde_json::from_value(data)?;
         let tokens = helpers::to_token_vec(&state, tokens)?;

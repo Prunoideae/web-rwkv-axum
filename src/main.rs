@@ -5,7 +5,7 @@ use axum::{routing::get, Router};
 use clap::Parser;
 use tokio::runtime::Builder;
 use web_rwkv_axum::{
-    app::{AppState, SharedState},
+    app::AppState,
     cli::LaunchArgs,
     routes::{hello_world, ws},
     states::{pipeline::Pipeline, softmax::Softmax},
@@ -26,16 +26,14 @@ async fn app(args: LaunchArgs) -> Result<()> {
     )
     .await;
 
-    let shared_state = SharedState::new(
-        AppState::new(
-            &model_config,
-            infer_sender.clone(),
-            softmax_sender.clone(),
-            context.clone(),
-            model.clone(),
-        )
-        .await?,
-    );
+    let shared_state = AppState::new(
+        &model_config,
+        infer_sender.clone(),
+        softmax_sender.clone(),
+        context.clone(),
+        model.clone(),
+    )
+    .await?;
 
     let app = Router::new()
         .route("/", get(hello_world::handler))
@@ -48,8 +46,8 @@ async fn app(args: LaunchArgs) -> Result<()> {
 
     drop(infer_sender);
     drop(softmax_sender);
-    model_handle.await??;
-    softmax_handle.await??;
+    model_handle.await?;
+    softmax_handle.await?;
     Ok(())
 }
 

@@ -1,5 +1,5 @@
 use self::types::Transformer;
-use crate::{app::SharedState, hashmap_ex};
+use crate::{app::AppState, hashmap_ex};
 use anyhow::{Error, Ok, Result};
 use dashmap::{mapref::one::RefMut, DashMap};
 use serde::Deserialize;
@@ -15,7 +15,7 @@ struct TransformerJson {
 }
 
 pub struct Transformers {
-    registry: HashMap<&'static str, fn(SharedState, Option<Value>) -> Result<Box<dyn Transformer>>>,
+    registry: HashMap<&'static str, fn(AppState, Option<Value>) -> Result<Box<dyn Transformer>>>,
     map: DashMap<String, Box<dyn Transformer>>,
 }
 
@@ -23,7 +23,7 @@ impl Transformers {
     pub fn new() -> Self {
         Self {
             registry: hashmap_ex! {
-                HashMap<&'static str, fn(SharedState, Option<Value>) -> Result<Box<dyn Transformer>>>,
+                HashMap<&'static str, fn(AppState, Option<Value>) -> Result<Box<dyn Transformer>>>,
                     {
 
                     }
@@ -35,7 +35,7 @@ impl Transformers {
     fn create(
         &self,
         key: &str,
-        state: SharedState,
+        state: AppState,
         data: Option<Value>,
     ) -> Result<Box<dyn Transformer>> {
         let constructor = self.registry.get(key);
@@ -49,7 +49,7 @@ impl Transformers {
     pub fn create_transformer(
         &self,
         id: String,
-        state: SharedState,
+        state: AppState,
         data: Option<Value>,
     ) -> Result<()> {
         if self.map.contains_key(&id) {

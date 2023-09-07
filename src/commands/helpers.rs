@@ -1,8 +1,8 @@
-use crate::app::SharedState;
+use crate::app::AppState;
 use anyhow::{Error, Ok, Result};
 use serde_json::Value;
 
-pub fn to_tokens(state: &SharedState, data: Value) -> Result<Vec<u16>> {
+pub fn to_tokens(state: &AppState, data: Value) -> Result<Vec<u16>> {
     Ok(match data {
         Value::String(s) => state.tokenize(&s.into_bytes())?,
         Value::Array(v) => serde_json::from_value(Value::Array(v))?,
@@ -10,7 +10,7 @@ pub fn to_tokens(state: &SharedState, data: Value) -> Result<Vec<u16>> {
     })
 }
 
-pub fn to_token_vec(state: &SharedState, data: Value) -> Result<Vec<Vec<u16>>> {
+pub fn to_token_vec(state: &AppState, data: Value) -> Result<Vec<Vec<u16>>> {
     if let Value::Array(data) = data {
         data.into_iter().map(|x| to_tokens(state, x)).collect()
     } else {

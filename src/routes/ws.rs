@@ -12,18 +12,18 @@ use futures_util::{stream::SplitSink, SinkExt, StreamExt};
 use tokio::sync::Mutex;
 
 use crate::{
-    app::SharedState,
+    app::AppState,
     commands::{
         types::{CommandError, CommandSuccess},
         TextCommand,
     },
 };
 
-pub async fn handler(ws: WebSocketUpgrade, State(state): State<SharedState>) -> impl IntoResponse {
+pub async fn handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
     ws.on_upgrade(move |socket: WebSocket| handle_socket(socket, state))
 }
 
-async fn handle_socket(socket: WebSocket, state: SharedState) {
+async fn handle_socket(socket: WebSocket, state: AppState) {
     let (sender, mut receiver) = socket.split();
     let sender = Arc::new(Mutex::new(sender));
 
@@ -42,7 +42,7 @@ async fn handle_socket(socket: WebSocket, state: SharedState) {
 }
 
 async fn handle_command_text(
-    state: SharedState,
+    state: AppState,
     sender: Arc<Mutex<SplitSink<WebSocket, Message>>>,
     payload: String,
 ) {
@@ -86,7 +86,7 @@ async fn handle_command_text(
 }
 
 async fn handle_command_bytes(
-    state: SharedState,
+    state: AppState,
     sender: Arc<Mutex<SplitSink<WebSocket, Message>>>,
     payload: Vec<u8>,
 ) {

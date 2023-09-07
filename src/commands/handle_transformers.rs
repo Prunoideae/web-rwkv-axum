@@ -2,7 +2,7 @@ use anyhow::{Error, Result};
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::app::SharedState;
+use crate::app::AppState;
 
 use super::helpers;
 
@@ -13,10 +13,11 @@ struct TransformerArgs {
 }
 
 #[inline]
-pub async fn create_transformer(data: Option<Value>, state: SharedState) -> Result<Value> {
+pub async fn create_transformer(data: Option<Value>, state: AppState) -> Result<Value> {
     if let Some(data) = data {
         let TransformerArgs { type_id, params } = serde_json::from_value(data)?;
         state
+            .0
             .transformers
             .create_transformer(type_id, state.clone(), params)
             .map(|_| Value::Null)
@@ -34,13 +35,14 @@ struct TransformerCopy {
 }
 
 #[inline]
-pub async fn copy_transformer(data: Option<Value>, state: SharedState) -> Result<Value> {
+pub async fn copy_transformer(data: Option<Value>, state: AppState) -> Result<Value> {
     if let Some(data) = data {
         let TransformerCopy {
             source,
             destination,
         } = serde_json::from_value(data)?;
         state
+            .0
             .transformers
             .copy_transformer(source, destination)
             .map(|_| Value::Null)
@@ -52,9 +54,10 @@ pub async fn copy_transformer(data: Option<Value>, state: SharedState) -> Result
 }
 
 #[inline]
-pub async fn delete_transformer(data: Option<Value>, state: SharedState) -> Result<Value> {
+pub async fn delete_transformer(data: Option<Value>, state: AppState) -> Result<Value> {
     if let Some(data) = data {
         state
+            .0
             .transformers
             .delete_transformer(
                 data.as_str()
@@ -78,11 +81,12 @@ struct TransformerUpdate {
 }
 
 #[inline]
-pub async fn update_transformer(data: Option<Value>, state: SharedState) -> Result<Value> {
+pub async fn update_transformer(data: Option<Value>, state: AppState) -> Result<Value> {
     if let Some(data) = data {
         let TransformerUpdate { id, tokens } = serde_json::from_value(data)?;
         let tokens = helpers::to_tokens(&state, tokens)?;
         state
+            .0
             .transformers
             .update_transformer(&id, &tokens)
             .map(|_| Value::Null)
@@ -94,9 +98,10 @@ pub async fn update_transformer(data: Option<Value>, state: SharedState) -> Resu
 }
 
 #[inline]
-pub async fn reset_transformer(data: Option<Value>, state: SharedState) -> Result<Value> {
+pub async fn reset_transformer(data: Option<Value>, state: AppState) -> Result<Value> {
     if let Some(data) = data {
         state
+            .0
             .transformers
             .reset_transformer(
                 data.as_str()

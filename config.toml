@@ -4,10 +4,10 @@
 [model]
 # Path to the model file
 # Must be a safetensor instead of pth.
-path = "assets/RWKV-4-World-7B-v1-20230626-ctx4096.st"
+path = "assets/RWKV-4-World-0.4B-v1-20230529-ctx4096.st"
 # Max batch count means max concurrent tasks will the
 # model infer at once. Default 32.
-max_batch_count = 32
+max_batch_count = 4
 # Max chunk count means how many tokens should a chunk
 # be at max. Larger chunks increase infer speed for long
 # prompt at the cost of resource consumption.
@@ -20,7 +20,7 @@ preference = "HighPerformance"
 # adapter = 0
 # Quantize a certain layer of the model, a bit flag.
 # If omitted, no quantization is done.
-# quantization = 0
+quantization = 4
 
 [tokenizer]
 # Path to the vocab JSON.

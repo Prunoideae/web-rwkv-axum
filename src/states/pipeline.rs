@@ -18,9 +18,11 @@ use super::infer::{InferContext, InferRequest, InferResult};
 struct Slots {
     slots: Vec<Option<oneshot::Sender<InferResult>>>,
     batch_tokens: Vec<Vec<u16>>,
+    batch_state_callbacks: Vec<Option<oneshot::Sender<Option<State>>>>,
+    batch_state_ids: Vec<Option<String>>,
+    batch_count: usize,
     batch: ModelState,
     model: Arc<Model<'static>>,
-    batch_count: usize,
 }
 
 impl Slots {
@@ -28,6 +30,8 @@ impl Slots {
         Slots {
             slots: (0..batch_count).map(|_| None).collect(),
             batch_tokens: (0..batch_count).map(|_| Vec::new()).collect(),
+            batch_state_callbacks: (0..batch_count).map(|_| None).collect(),
+            batch_state_ids: vec![None; batch_count],
             batch: ModelState::new(&context, model.info(), batch_count),
             model,
             batch_count,
@@ -42,6 +46,50 @@ impl Slots {
         self.slots.iter().all(|c| c.is_none())
     }
 
+    /// Swaps a state to a (potentially different) state in slot
+    async fn swap(
+        &mut self,
+        index: usize,
+        state: Option<State>,
+        state_id: String,
+        state_callback: oneshot::Sender<Option<State>>,
+    ) -> Result<()> {
+        if let Some(slot_state_id) = &self.batch_state_ids[index] {
+            // State id matches, no need to update state
+            if *slot_state_id == state_id {
+                let callback =
+                    std::mem::replace(&mut self.batch_state_callbacks[index], Some(state_callback))
+                        .unwrap();
+                callback
+                    .send(None)
+                    .map_err(|_| Error::msg("Error when sending state!"))?;
+                return Ok(());
+            }
+        }
+
+        // Update the state since mismatch or empty slot
+        self.batch_state_ids[index] = Some(state_id);
+        if let Some(callback) =
+            std::mem::replace(&mut self.batch_state_callbacks[index], Some(state_callback))
+        {
+            callback
+                .send(Some(State(self.batch.back_batch(index)?.data)))
+                .map_err(|_| Error::msg("Error when sending state!"))?;
+        }
+        let info = self.model.info();
+        let state = if let Some(state) = state {
+            let shape = Shape::new(info.num_emb, 5 * info.num_layers, 1);
+            BackedState {
+                shape,
+                data: state.0,
+            }
+        } else {
+            BackedState::new(info, 1)
+        };
+        self.batch.load_batch(&state, index)?;
+        Ok(())
+    }
+
     /// Inserts a request into the batch
     /// Also uploads the state to the buffer
     async fn insert(&mut self, request: InferRequest) -> Result<()> {
@@ -52,29 +100,39 @@ impl Slots {
         let InferRequest {
             context: InferContext { state, tokens },
             callback,
+            state_id,
+            state_callback,
         } = request;
         let callback = Some(callback);
 
+        // Try to find the empty slot with same slot id
+        for idx in 0..self.batch_count {
+            if self.slots[idx].is_none() {
+                if let Some(slot_id) = &self.batch_state_ids[idx] {
+                    if slot_id == &state_id {
+                        self.slots[idx] = callback;
+                        self.batch_tokens[idx] = tokens;
+                        return self.swap(idx, state, state_id, state_callback).await;
+                    }
+                }
+            }
+        }
+
+        // Try to find the empty slot with empty state id (not occupied)
+        for idx in 0..self.batch_count {
+            if self.slots[idx].is_none() && self.batch_state_ids[idx].is_none() {
+                self.slots[idx] = callback;
+                self.batch_tokens[idx] = tokens;
+                return self.swap(idx, state, state_id, state_callback).await;
+            }
+        }
+
         // Find the first index being empty
         for idx in 0..self.batch_count {
-            // Sleep for 5us to make things batched
-            tokio::time::sleep(Duration::from_micros(5)).await;
-            // then update the callback and tokens
             if self.slots[idx].is_none() {
                 self.slots[idx] = callback;
                 self.batch_tokens[idx] = tokens;
-                let info = self.model.info();
-                let backed_state = if let Some(state) = state {
-                    let shape = Shape::new(info.num_emb, 5 * info.num_layers, 1);
-                    BackedState {
-                        shape,
-                        data: state.0,
-                    }
-                } else {
-                    BackedState::new(info, 1)
-                };
-                self.batch.load_batch(&backed_state, idx)?;
-                break;
+                return self.swap(idx, state, state_id, state_callback).await;
             }
         }
         Ok(())
@@ -96,7 +154,6 @@ impl Slots {
             if !logits[idx].is_empty() {
                 let result = InferResult {
                     logits: Logits(logits[idx].clone()),
-                    state: State(self.batch.back_batch(idx)?.data),
                 };
                 self.finish(idx, result)?
             }
@@ -146,7 +203,7 @@ impl Pipeline {
         batch_size: usize,
         context: Context,
         model: Arc<Model<'static>>,
-    ) -> (mpsc::Sender<Vec<InferRequest>>, JoinHandle<Result<()>>) {
+    ) -> (mpsc::Sender<Vec<InferRequest>>, JoinHandle<()>) {
         let (sender, mut receiver) = mpsc::channel::<Vec<InferRequest>>(batch_size);
         let handle = tokio::spawn(async move {
             println!("Model is loaded!");
@@ -157,7 +214,12 @@ impl Pipeline {
                 // This has an assumption that the batch is empty. (just initialized/ finished all inference)
                 if let Some(requests) = receiver.recv().await {
                     // Load the request
-                    Pipeline::load_or_queue(requests, &mut slots, &mut queued_requests).await?;
+                    Pipeline::load_or_queue(requests, &mut slots, &mut queued_requests)
+                        .await
+                        .unwrap();
+
+                    // Sleep for 5us to make things batched
+                    tokio::time::sleep(Duration::from_micros(10)).await;
 
                     // Start an infer loop until all slots are done again with no incoming requests
                     loop {
@@ -165,7 +227,8 @@ impl Pipeline {
                         if !slots.is_full() {
                             while let Ok(requests) = receiver.try_recv() {
                                 Pipeline::load_or_queue(requests, &mut slots, &mut queued_requests)
-                                    .await?;
+                                    .await
+                                    .unwrap();
                                 if slots.is_full() {
                                     break;
                                 }
@@ -173,11 +236,11 @@ impl Pipeline {
                         }
 
                         // Infer till at least 1 slot is done
-                        slots.infer().await?;
+                        slots.infer().await.unwrap();
 
                         // Release queued requests into the slots
                         while let Some(queued) = queued_requests.pop() {
-                            slots.insert(queued).await?;
+                            slots.insert(queued).await.unwrap();
                             if slots.is_full() {
                                 break;
                             }
@@ -189,7 +252,8 @@ impl Pipeline {
                         if !slots.is_full() {
                             while let Ok(requests) = receiver.try_recv() {
                                 Pipeline::load_or_queue(requests, &mut slots, &mut queued_requests)
-                                    .await?;
+                                    .await
+                                    .unwrap();
                                 if slots.is_full() {
                                     break;
                                 }
@@ -205,7 +269,7 @@ impl Pipeline {
                     break;
                 }
             }
-            anyhow::Ok(())
+            ()
         });
         (sender, handle)
     }

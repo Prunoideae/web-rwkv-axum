@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::{Error, Ok, Result};
+use anyhow::{Error, Result};
 use dashmap::DashMap;
 use tokio::sync::{mpsc::Sender, oneshot};
 use web_rwkv::{context::Context, model::Model, tokenizer::Tokenizer};
@@ -16,8 +16,7 @@ use crate::{
     },
 };
 
-/// Global state holder of the entire app.
-pub struct AppState {
+pub struct InnerState {
     pub config: ModelConfig,
     pub samplers: Arc<Samplers>,
     pub transformers: Arc<Transformers>,
@@ -31,6 +30,10 @@ pub struct AppState {
     pub model: Arc<Model<'static>>,
 }
 
+#[derive(Clone)]
+/// Global state holder of the entire app.
+pub struct AppState(pub Arc<InnerState>);
+
 impl AppState {
     pub async fn new(
         config: &ModelConfig,
@@ -39,7 +42,7 @@ impl AppState {
         context: Context,
         model: Arc<Model<'static>>,
     ) -> Result<Self> {
-        Ok(AppState {
+        Ok(AppState(Arc::new(InnerState {
             config: config.clone(),
             samplers: Arc::new(Samplers::new()),
             transformers: Arc::new(Transformers::new()),
@@ -49,7 +52,7 @@ impl AppState {
             tokenizer: Arc::new(config.tokenizer.load_tokenizer().await?),
             context,
             model,
-        })
+        })))
     }
 
     pub async fn update_state(&self, id: Vec<String>, tokens: Vec<Vec<u16>>) -> Result<()> {
@@ -58,40 +61,42 @@ impl AppState {
     }
 
     pub async fn create_state(&self, id: String) -> Result<()> {
-        if self.infer_states.contains_key(&id) {
+        if self.0.infer_states.contains_key(&id) {
             return Err(Error::msg("State already exists!"));
         }
-        self.infer_states.insert(id, None);
+        self.0.infer_states.insert(id, None);
         Ok(())
     }
 
     #[inline(always)]
     pub fn has_state(&self, id: &String) -> bool {
-        self.infer_states.contains_key(id)
+        self.0.infer_states.contains_key(id)
     }
 
     pub async fn copy_state(&self, src: String, dst: String) -> Result<()> {
-        if self.infer_states.contains_key(&dst) {
+        if self.0.infer_states.contains_key(&dst) {
             return Err(Error::msg("Destination state id already exists!"));
         }
         let src = self
+            .0
             .infer_states
             .get(&src)
             .ok_or(Error::msg("State doesn't exist!"))?
             .clone();
-        self.infer_states.insert(dst, src);
+        self.0.infer_states.insert(dst, src);
         Ok(())
     }
 
     pub async fn delete_state(&self, id: String) -> Result<()> {
-        self.infer_states
+        self.0
+            .infer_states
             .remove(&id)
             .ok_or(Error::msg("State doesn't exist!"))
             .map(|_| ())
     }
 
     pub fn tokenize(&self, input: &Vec<u8>) -> Result<Vec<u16>> {
-        Ok(self.tokenizer.encode(&input)?)
+        Ok(self.0.tokenizer.encode(&input)?)
     }
 
     pub async fn infer(
@@ -102,7 +107,8 @@ impl AppState {
         let states = state_keys
             .iter()
             .map(|key| {
-                self.infer_states
+                self.0
+                    .infer_states
                     .get(key)
                     .ok_or(Error::msg(format!("State {} doesn't exist!", key)))
             })
@@ -117,21 +123,36 @@ impl AppState {
             })
             .collect();
 
-        let results = InferRequest::send(requests, self.infer_queue.clone()).await?;
+        let mut senders = Vec::with_capacity(state_keys.len());
+        for key in state_keys.clone() {
+            let cloned = self.clone();
+            let (sender, receiver) = oneshot::channel();
+            tokio::spawn(async move {
+                // When `None` is returned, a new infer callback
+                // replaces current infer callback, so no need
+                // to update state
+                if let Ok(Some(result)) = receiver.await {
+                    cloned.0.infer_states.insert(key, Some(result));
+                }
+            });
+            senders.push(sender)
+        }
+
+        let results = InferRequest::send(
+            requests,
+            self.0.infer_queue.clone(),
+            state_keys.clone(),
+            senders,
+        )
+        .await?;
 
         Ok(results
             .into_iter()
-            .zip(state_keys.into_iter())
-            .map(|(InferResult { state, logits }, state_key)| {
-                self.infer_states.insert(state_key, Some(state));
-                logits
-            })
+            .map(|InferResult { logits }| logits)
             .collect())
     }
 
     pub async fn softmax(&self, logits: Vec<Vec<f32>>) -> Result<Vec<Vec<f32>>> {
-        Softmax::softmax(logits, self.softmax_queue.clone()).await
+        Softmax::softmax(logits, self.0.softmax_queue.clone()).await
     }
 }
-
-pub type SharedState = Arc<AppState>;
