@@ -206,7 +206,6 @@ impl Pipeline {
     ) -> (mpsc::Sender<Vec<InferRequest>>, JoinHandle<()>) {
         let (sender, mut receiver) = mpsc::channel::<Vec<InferRequest>>(batch_size);
         let handle = tokio::spawn(async move {
-            println!("Model is loaded!");
             let mut slots = Slots::new(batch_size, &context, model.clone()).await;
             let mut queued_requests: Vec<InferRequest> = Vec::new();
             loop {

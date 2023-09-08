@@ -83,7 +83,7 @@ async def main():
             result = result["result"]
             print(result, flush=True, end="")
 
-        print(f"\nEnded in {elapsed/1000:2f}s, tps: {repeats/(elapsed/1000):.2f}")
+        print(f"\nEnded in {(elapsed/1000):.2f}s, tps: {(repeats/(elapsed/1000)):.2f}")
 
         await invoke_command(ws, "delete_state", state_name)
         await invoke_command(ws, "delete_sampler", sampler_name)

@@ -1,6 +1,6 @@
 use anyhow::{Error, Result};
 use rayon::prelude::*;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{app::AppState, commands::helpers};
@@ -48,6 +48,13 @@ async fn infer_and_sample(
     return app_state.0.samplers.sample_token(sampler, probs);
 }
 
+#[derive(Debug, Serialize)]
+struct InferResponse {
+    value: String,
+    last_token: u16,
+    inferred_tokens: usize,
+}
+
 pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
     if let Some(data) = data {
         let InferPayload {
@@ -79,6 +86,10 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
             .map(|v| helpers::to_tokens(&state, v))
             .collect::<Result<Vec<_>>>()?;
 
+        if tokens.is_empty() || tokens.iter().any(|x| x.is_empty()) {
+            return Err(Error::msg("Empty token list!"));
+        }
+
         if update_prompt {
             transformers
                 .par_iter()
@@ -92,8 +103,9 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
             let _ = state.0.samplers.update_sampler(&sampler, &tokens);
         }
 
-        let result = {
+        let (result, last_token, inferred_tokens) = {
             let mut out_tokens = Vec::with_capacity(4);
+            let mut inferred_tokens = 1usize;
             // Feed prompt first
             out_tokens.push(
                 infer_and_sample(state.clone(), &states, &transformers, tokens, &sampler).await?,
@@ -106,7 +118,10 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
                     .decode(&out_tokens.as_slice())
                     .map(|x| String::from_utf8(x))
                 {
-                    break result;
+                    if !result.is_empty() {
+                        let last_token = *out_tokens.last().unwrap();
+                        break (result, last_token, inferred_tokens);
+                    }
                 }
 
                 // Not ready, infer next one using last token
@@ -120,10 +135,15 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
                     )
                     .await?,
                 );
+                inferred_tokens += 1;
             }
         };
 
-        Ok(Value::String(result))
+        Ok(serde_json::to_value(InferResponse {
+            value: result,
+            last_token,
+            inferred_tokens,
+        })?)
     } else {
         Err(Error::msg(
             "Field data is needed to specify infer pipeline!",

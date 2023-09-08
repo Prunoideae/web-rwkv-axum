@@ -7,7 +7,7 @@
 path = "assets/RWKV-4-World-0.4B-v1-20230529-ctx4096.st"
 # Max batch count means max concurrent tasks will the
 # model infer at once. Default 32.
-max_batch_count = 32
+max_batch_count = 4
 # Max chunk count means how many tokens should a chunk
 # be at max. Larger chunks increase infer speed for long
 # prompt at the cost of resource consumption.
