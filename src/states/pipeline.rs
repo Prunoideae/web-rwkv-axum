@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use anyhow::{Error, Result};
 use tokio::{
@@ -47,7 +47,7 @@ impl Slots {
     }
 
     /// Swaps a state to a (potentially different) state in slot
-    async fn swap(
+    fn swap(
         &mut self,
         index: usize,
         state: Option<State>,
@@ -92,7 +92,7 @@ impl Slots {
 
     /// Inserts a request into the batch
     /// Also uploads the state to the buffer
-    async fn insert(&mut self, request: InferRequest) -> Result<()> {
+    fn insert(&mut self, request: InferRequest) -> Result<()> {
         if self.is_full() {
             panic!("Batch is full while inserting new requests!")
         }
@@ -112,7 +112,7 @@ impl Slots {
                     if slot_id == &state_id {
                         self.slots[idx] = callback;
                         self.batch_tokens[idx] = tokens;
-                        return self.swap(idx, state, state_id, state_callback).await;
+                        return self.swap(idx, state, state_id, state_callback);
                     }
                 }
             }
@@ -123,7 +123,7 @@ impl Slots {
             if self.slots[idx].is_none() && self.batch_state_ids[idx].is_none() {
                 self.slots[idx] = callback;
                 self.batch_tokens[idx] = tokens;
-                return self.swap(idx, state, state_id, state_callback).await;
+                return self.swap(idx, state, state_id, state_callback);
             }
         }
 
@@ -132,14 +132,14 @@ impl Slots {
             if self.slots[idx].is_none() {
                 self.slots[idx] = callback;
                 self.batch_tokens[idx] = tokens;
-                return self.swap(idx, state, state_id, state_callback).await;
+                return self.swap(idx, state, state_id, state_callback);
             }
         }
         Ok(())
     }
 
     /// Infer until any of the batch is completed.
-    async fn infer(&mut self) -> Result<()> {
+    fn infer(&mut self) -> Result<()> {
         let logits = loop {
             let logits_internal = self
                 .model
@@ -181,7 +181,7 @@ impl Pipeline {
     ///
     /// If the slot is full, load to queue instead (which will be loaded to slot when available)
     #[inline(always)]
-    async fn load_or_queue(
+    fn load_or_queue(
         requests: Vec<InferRequest>,
         slots: &mut Slots,
         queue: &mut Vec<InferRequest>,
@@ -190,7 +190,7 @@ impl Pipeline {
             if slots.is_full() {
                 queue.push(request);
             } else {
-                slots.insert(request).await?;
+                slots.insert(request)?;
             }
         }
         Ok(())
@@ -213,33 +213,24 @@ impl Pipeline {
                 // This has an assumption that the batch is empty. (just initialized/ finished all inference)
                 if let Some(requests) = receiver.recv().await {
                     // Load the request
-                    Pipeline::load_or_queue(requests, &mut slots, &mut queued_requests)
-                        .await
-                        .unwrap();
-
-                    // Sleep for 5us to make things batched
-                    tokio::time::sleep(Duration::from_micros(10)).await;
-
+                    Pipeline::load_or_queue(requests, &mut slots, &mut queued_requests).unwrap();
                     // Start an infer loop until all slots are done again with no incoming requests
                     loop {
                         // Insert until slots full or no more requests
                         if !slots.is_full() {
                             while let Ok(requests) = receiver.try_recv() {
                                 Pipeline::load_or_queue(requests, &mut slots, &mut queued_requests)
-                                    .await
                                     .unwrap();
                                 if slots.is_full() {
                                     break;
                                 }
                             }
                         }
-
                         // Infer till at least 1 slot is done
-                        slots.infer().await.unwrap();
-
+                        slots.infer().unwrap();
                         // Release queued requests into the slots
                         while let Some(queued) = queued_requests.pop() {
-                            slots.insert(queued).await.unwrap();
+                            slots.insert(queued).unwrap();
                             if slots.is_full() {
                                 break;
                             }
@@ -251,7 +242,6 @@ impl Pipeline {
                         if !slots.is_full() {
                             while let Ok(requests) = receiver.try_recv() {
                                 Pipeline::load_or_queue(requests, &mut slots, &mut queued_requests)
-                                    .await
                                     .unwrap();
                                 if slots.is_full() {
                                     break;

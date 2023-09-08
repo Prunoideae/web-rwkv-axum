@@ -54,7 +54,7 @@ commands = [
 
 payload = {}
 
-repeats = 500
+repeats = 1000
 
 
 async def main():
@@ -68,7 +68,7 @@ async def main():
                 print(result)
 
         elapsed = 0
-
+        result = result['last_token']
         for i in range(repeats):
             data = {
                 "tokens": None,
@@ -77,11 +77,12 @@ async def main():
                 "sampler": sampler_name,
                 "update_prompt": True,
             }
-            data["tokens"] = [result]
+            data["tokens"] = [[result]]
             result = await invoke_command(ws, "infer", data)
             elapsed += result["duration_ms"]
-            result = result["result"]
-            print(result, flush=True, end="")
+            output = result["result"]['value']
+            result = result["result"]['last_token']
+            print(output, flush=True, end="")
 
         print(f"\nEnded in {(elapsed/1000):.2f}s, tps: {(repeats/(elapsed/1000)):.2f}")
 
