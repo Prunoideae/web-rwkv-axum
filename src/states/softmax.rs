@@ -77,7 +77,7 @@ impl Softmax {
     pub async fn softmax(
         logits: Vec<Vec<f32>>,
         sender: mpsc::Sender<Vec<(Vec<f32>, oneshot::Sender<Vec<f32>>)>>,
-    ) -> Result<Vec<Vec<f32>>> {
+    ) -> Vec<Vec<f32>> {
         let (receivers, requests): (
             Vec<oneshot::Receiver<Vec<f32>>>,
             Vec<(Vec<f32>, oneshot::Sender<Vec<f32>>)>,
@@ -88,11 +88,11 @@ impl Softmax {
                 (receiver, (logits, sender))
             })
             .unzip();
-        sender.send(requests).await?;
+        sender.send(requests).await.unwrap();
         let mut results = Vec::with_capacity(receivers.len());
         for receiver in receivers {
             results.push(receiver.await.unwrap());
         }
-        Ok(results)
+        results
     }
 }

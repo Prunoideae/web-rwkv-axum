@@ -80,8 +80,7 @@ impl Samplers {
 
     pub fn update_sampler(&self, id: &String, content: &Vec<Vec<u16>>) -> Result<()> {
         if let Some(mut sampler) = self.map.get_mut(id) {
-            sampler.update(content);
-            Ok(())
+            sampler.update(content)
         } else {
             Err(Error::msg("Sampler id doesn't exist!"))
         }
@@ -102,7 +101,7 @@ impl Samplers {
 
     pub fn sample_token(&self, id: &String, probs: Vec<Vec<f32>>) -> Result<u16> {
         if let Some(sampler) = self.map.get(id) {
-            Ok(sampler.sample(probs)?)
+            Ok(sampler.sample(probs))
         } else {
             Err(Error::msg("Sampler id doesn't exist!"))
         }

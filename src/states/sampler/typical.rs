@@ -13,7 +13,7 @@ pub struct TypicalSampler {
 }
 
 impl Sampler for TypicalSampler {
-    fn sample(&self, probs: Vec<Vec<f32>>) -> Result<u16> {
+    fn sample(&self, probs: Vec<Vec<f32>>) -> u16 {
         let probs = &probs[0];
         let sorted = probs
             .into_iter()
@@ -37,12 +37,14 @@ impl Sampler for TypicalSampler {
             .find_or_first(|&(_, cum)| rand <= cum)
             .map(|(id, _)| id)
             .unwrap_or_default();
-        Ok(token as u16)
+        token as u16
     }
 
     fn clear(&mut self) {}
 
-    fn update(&mut self, _tokens: &Vec<Vec<u16>>) {}
+    fn update(&mut self, _tokens: &Vec<Vec<u16>>) -> Result<()> {
+        Ok(())
+    }
 
     fn clone(&self) -> Box<dyn Sampler> {
         Box::new(Self {

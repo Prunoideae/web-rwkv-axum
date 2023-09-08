@@ -7,7 +7,7 @@ states (depending on the use case) inferred in the current pipeline, and output 
 which is the logits sampled.
 
 The sampling process is computation-heavy and blocking, thus no `async` is present
-in the sample trait (and I don't really like `async-trait` because it just sucks).
+in the sampler trait (and I don't really like `async-trait` because it just sucks).
 
 ## Trait
 

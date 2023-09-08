@@ -54,7 +54,7 @@ commands = [
 
 payload = {}
 
-repeats = 1000
+tokens = 150
 
 
 async def main():
@@ -68,8 +68,9 @@ async def main():
                 print(result)
 
         elapsed = 0
-        result = result['last_token']
-        for i in range(repeats):
+        inferred = 0
+        result = result["last_token"]
+        while inferred < tokens:
             data = {
                 "tokens": None,
                 "states": [state_name],
@@ -80,11 +81,12 @@ async def main():
             data["tokens"] = [[result]]
             result = await invoke_command(ws, "infer", data)
             elapsed += result["duration_ms"]
-            output = result["result"]['value']
-            result = result["result"]['last_token']
+            output = result["result"]["value"]
+            inferred += result["result"]["inferred_tokens"]
+            result = result["result"]["last_token"]
             print(output, flush=True, end="")
 
-        print(f"\nEnded in {(elapsed/1000):.2f}s, tps: {(repeats/(elapsed/1000)):.2f}")
+        print(f"\nEnded in {(elapsed/1000):.2f}s, tps: {(inferred/(elapsed/1000)):.2f}")
 
         await invoke_command(ws, "delete_state", state_name)
         await invoke_command(ws, "delete_sampler", sampler_name)

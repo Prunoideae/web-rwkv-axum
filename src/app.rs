@@ -10,6 +10,7 @@ use crate::{
     helper::{Logits, State},
     states::{
         infer::{InferContext, InferRequest, InferResult},
+        permit::BatchRequest,
         sampler::Samplers,
         softmax::Softmax,
         transformer::Transformers,
@@ -28,6 +29,7 @@ pub struct InnerState {
     pub tokenizer: Arc<Tokenizer>,
     pub context: Context,
     pub model: Arc<Model<'static>>,
+    pub batch_request: BatchRequest,
 }
 
 #[derive(Clone)]
@@ -41,6 +43,7 @@ impl AppState {
         softmax_queue: Sender<Vec<(Vec<f32>, oneshot::Sender<Vec<f32>>)>>,
         context: Context,
         model: Arc<Model<'static>>,
+        batch_request: BatchRequest,
     ) -> Result<Self> {
         Ok(AppState(Arc::new(InnerState {
             config: config.clone(),
@@ -52,6 +55,7 @@ impl AppState {
             tokenizer: Arc::new(config.tokenizer.load_tokenizer().await?),
             context,
             model,
+            batch_request,
         })))
     }
 
@@ -152,7 +156,8 @@ impl AppState {
             .collect())
     }
 
-    pub async fn softmax(&self, logits: Vec<Vec<f32>>) -> Result<Vec<Vec<f32>>> {
+    /// This must not fail, or the implementation is severly bugged
+    pub async fn softmax(&self, logits: Vec<Vec<f32>>) -> Vec<Vec<f32>> {
         Softmax::softmax(logits, self.0.softmax_queue.clone()).await
     }
 }

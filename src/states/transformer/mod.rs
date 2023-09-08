@@ -96,8 +96,7 @@ impl Transformers {
 
     pub fn update_transformer(&self, id: &String, content: &Vec<u16>) -> Result<()> {
         if let Some(mut transformer) = self.map.get_mut(id) {
-            transformer.update(content);
-            Ok(())
+            transformer.update(content)
         } else {
             Err(Error::msg("Transformer id doesn't exist!"))
         }

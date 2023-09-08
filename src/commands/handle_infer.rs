@@ -37,18 +37,29 @@ async fn infer_and_sample(
     update_prompts: bool,
 ) -> Result<u16> {
     if update_prompts {
-        tokio::task::block_in_place(|| {
+        tokio::task::block_in_place(|| -> Result<()> {
+            // This is the last place anything can stop the infer, if you want
+            // to stop the infer in case of additional termination from
+            // transformer/sampler, you must do it from updates, or the state
+            // will be polluted by the token input.
+
+            // Transformer and sampler should be aware of the exhaustion, where
+            // it should know it will fail no matter what logits/probs are
+            // given at sample/transformation time. and if it knows, it must
+            // throw an error.
             transformers
                 .par_iter()
                 .zip(tokens.par_iter())
-                .for_each(|(t_ids, tokens)| {
+                .map(|(t_ids, tokens)| {
                     for t_id in t_ids {
-                        let _ = app_state.0.transformers.update_transformer(t_id, tokens);
+                        app_state.0.transformers.update_transformer(t_id, tokens)?;
                     }
-                });
-
-            let _ = app_state.0.samplers.update_sampler(&sampler, &tokens);
-        })
+                    Ok(())
+                })
+                .collect::<Result<Vec<()>>>()?;
+            app_state.0.samplers.update_sampler(&sampler, &tokens)?;
+            Ok(())
+        })?;
     }
 
     let logits = app_state.infer(state_ids.clone(), tokens).await?;
@@ -67,7 +78,7 @@ async fn infer_and_sample(
     } else {
         logits.into_iter().map(|x| x.0).collect()
     };
-    let probs = app_state.softmax(logits).await?;
+    let probs = app_state.softmax(logits).await;
     return tokio::task::block_in_place(move || app_state.0.samplers.sample_token(&sampler, probs));
 }
 
@@ -87,6 +98,12 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
             sampler,
             update_prompt,
         } = serde_json::from_value::<InferPayload>(data)?;
+
+        if tokens.len() != states.len() || states.len() != transformers.len() {
+            return Err(Error::msg(
+                "State, token, transformer length must be matched!",
+            ));
+        }
 
         if states.iter().any(|x| !state.has_state(x)) {
             return Err(Error::msg("One or more state ids not exist!"));
@@ -115,8 +132,14 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
 
         let (result, last_token, inferred_tokens) = {
             let mut out_tokens = Vec::with_capacity(4);
-            let mut inferred_tokens = 1usize;
-            // Feed prompt first
+            let mut inferred_tokens: usize = 1usize;
+            let mut result = String::new();
+
+            // Locks state_size slots for the infer
+            let _permits = state.0.batch_request.request(states.len());
+
+            // Feed prompt first, at least the first token should be ok
+            // or there must be some problem in the infer pipeline
             out_tokens.push(
                 infer_and_sample(
                     state.clone(),
@@ -129,32 +152,47 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
                 .await?,
             );
 
+            let mut last_token = *out_tokens.last().unwrap();
+
             loop {
-                if let Ok(Ok(result)) = state
+                if let Ok(Ok(partial)) = state
                     .0
                     .tokenizer
                     .decode(&out_tokens.as_slice())
                     .map(|x| String::from_utf8(x))
                 {
-                    if !result.is_empty() {
-                        let last_token = *out_tokens.last().unwrap();
-                        break (result, last_token, inferred_tokens);
-                    }
+                    result.push_str(partial.as_str());
+                    inferred_tokens += out_tokens.len();
+                    out_tokens.clear()
+                }
+
+                // TODO: implement terminal here
+                // Now let's see how it would be if infer 10 tokens at once
+                if inferred_tokens >= 10 && out_tokens.is_empty() {
+                    break (result, last_token, inferred_tokens);
                 }
 
                 // Not ready, infer next one using last token
                 out_tokens.push(
-                    infer_and_sample(
+                    match infer_and_sample(
                         state.clone(),
                         &states,
                         &transformers,
-                        vec![vec![*out_tokens.last().unwrap(); states.len()]],
+                        vec![vec![last_token]; states.len()],
                         &sampler,
                         update_prompt,
                     )
-                    .await?,
+                    .await
+                    {
+                        Ok(token) => token,
+                        // In case of error, probably because transformer/sampler
+                        // dont wan't to do it anymore, break and return current results
+                        Err(_) => {
+                            break (result, last_token, inferred_tokens);
+                        }
+                    },
                 );
-                inferred_tokens += 1;
+                last_token = *out_tokens.last().unwrap();
             }
         };
 
