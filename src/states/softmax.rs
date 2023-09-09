@@ -1,5 +1,5 @@
 use anyhow::{Error, Result};
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use tokio::{
     sync::{mpsc, oneshot},
@@ -27,6 +27,9 @@ impl Softmax {
         let mut queue = Vec::with_capacity(self.max_batch_size);
         while let Some(requests) = receiver.recv().await {
             queue.extend(requests);
+
+            // Sleep for 5us to make things batched
+            tokio::time::sleep(Duration::from_micros(10)).await;
 
             while let Ok(requests) = receiver.try_recv() {
                 queue.extend(requests);
@@ -74,7 +77,7 @@ impl Softmax {
     pub async fn softmax(
         logits: Vec<Vec<f32>>,
         sender: mpsc::Sender<Vec<(Vec<f32>, oneshot::Sender<Vec<f32>>)>>,
-    ) -> Result<Vec<Vec<f32>>> {
+    ) -> Vec<Vec<f32>> {
         let (receivers, requests): (
             Vec<oneshot::Receiver<Vec<f32>>>,
             Vec<(Vec<f32>, oneshot::Sender<Vec<f32>>)>,
@@ -85,11 +88,11 @@ impl Softmax {
                 (receiver, (logits, sender))
             })
             .unzip();
-        sender.send(requests).await?;
+        sender.send(requests).await.unwrap();
         let mut results = Vec::with_capacity(receivers.len());
         for receiver in receivers {
             results.push(receiver.await.unwrap());
         }
-        Ok(results)
+        results
     }
 }

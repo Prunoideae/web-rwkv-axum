@@ -1,12 +1,10 @@
 #
 
-## `copy_state`
+## `copy_sampler`
 
-This command copies a state to create a new state with the ID specified.
+This command copies a sampler to create a new sampler with the ID specified.
 
 If the source doesn't exist, or the destination already exists, an error will be returned.
-
-This command is `synced`, which means that it will force a download from the pooled GPU memory (if there is any) to ensure that the state copied is fresh.
 
 ## Example
 
@@ -15,11 +13,11 @@ This command is `synced`, which means that it will force a download from the poo
 ```jsonc
 {
     "echo_id": ...,
-    "command": "copy_state",
+    "command": "copy_sampler",
 
     "data": {
-        "source": "state1_backup",
-        "destination": "state1",
+        "source": "sampler1_backup",
+        "destination": "sampler1",
     }
 }
 ```

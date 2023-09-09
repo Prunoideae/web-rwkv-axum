@@ -1,18 +1,20 @@
 use super::types::Sampler;
-use crate::app::AppState;
-use anyhow::{Error, Ok, Result};
+use crate::{app::AppState, states::InferenceInterruption};
+use anyhow::{Error, Result};
 use itertools::Itertools;
+use serde::Deserialize;
 use serde_json::Value;
 
 /// Typical sampler for logits
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct TypicalSampler {
     top_p: f32,
     temp: f32,
 }
 
 impl Sampler for TypicalSampler {
-    fn sample(&self, probs: Vec<Vec<f32>>) -> Result<u16> {
+    // TODO: Make it return a vec of u16
+    fn sample(&self, probs: Vec<Vec<f32>>) -> u16 {
         let probs = &probs[0];
         let sorted = probs
             .into_iter()
@@ -36,12 +38,14 @@ impl Sampler for TypicalSampler {
             .find_or_first(|&(_, cum)| rand <= cum)
             .map(|(id, _)| id)
             .unwrap_or_default();
-        Ok(token as u16)
+        token as u16
     }
 
     fn clear(&mut self) {}
 
-    fn update(&mut self, _tokens: &Vec<Vec<u16>>) {}
+    fn update(&mut self, _tokens: &Vec<Vec<u16>>) -> Result<(), InferenceInterruption> {
+        Ok(())
+    }
 
     fn clone(&self) -> Box<dyn Sampler> {
         Box::new(Self {
@@ -52,22 +56,7 @@ impl Sampler for TypicalSampler {
 }
 
 pub fn initialize_typical(_state: AppState, data: Option<Value>) -> Result<Box<dyn Sampler>> {
-    let mut top_p: f32 = 0.6;
-    let mut temp: f32 = 1.0;
-
-    if let Some(Value::Object(values)) = data {
-        if let Some(new_top_p) = values.get("top_p") {
-            top_p = new_top_p
-                .as_f64()
-                .ok_or(Error::msg("top_p must be a float!"))? as f32;
-        }
-
-        if let Some(new_temp) = values.get("temp") {
-            temp = new_temp
-                .as_f64()
-                .ok_or(Error::msg("temp must be a float!"))? as f32;
-        }
-    }
-
-    Ok(Box::new(TypicalSampler { top_p, temp }))
+    Ok(Box::new(serde_json::from_value::<TypicalSampler>(
+        data.ok_or(Error::msg("Field must present to specify top_p and temp!"))?,
+    )?))
 }

@@ -9,7 +9,7 @@ use axum::{
     response::IntoResponse,
 };
 use futures_util::{stream::SplitSink, SinkExt, StreamExt};
-use tokio::sync::Mutex;
+use tokio::{sync::Mutex, time::Instant};
 
 use crate::{
     app::AppState,
@@ -46,6 +46,7 @@ async fn handle_command_text(
     sender: Arc<Mutex<SplitSink<WebSocket, Message>>>,
     payload: String,
 ) {
+    let start = Instant::now();
     match serde_json::from_str::<TextCommand>(payload.as_str()) {
         Ok(command) => match command.handle(state).await {
             Ok(v) => {
@@ -53,7 +54,7 @@ async fn handle_command_text(
                     .lock()
                     .await
                     .send(Message::Text(
-                        serde_json::to_string(&CommandSuccess::new(command.echo_id, v)).unwrap(),
+                        serde_json::to_string(&CommandSuccess::new(command.echo_id, v, start)).unwrap(),
                     ))
                     .await
                     .ok();
@@ -90,6 +91,7 @@ async fn handle_command_bytes(
     sender: Arc<Mutex<SplitSink<WebSocket, Message>>>,
     payload: Vec<u8>,
 ) {
+    let start = Instant::now();
     match bson::from_slice::<TextCommand>(&payload) {
         Ok(command) => match command.handle(state).await {
             Ok(v) => {
@@ -97,7 +99,7 @@ async fn handle_command_bytes(
                     .lock()
                     .await
                     .send(Message::Binary(
-                        bson::to_vec(&CommandSuccess::new(command.echo_id, v)).unwrap(),
+                        bson::to_vec(&CommandSuccess::new(command.echo_id, v, start)).unwrap(),
                     ))
                     .await
                     .ok();

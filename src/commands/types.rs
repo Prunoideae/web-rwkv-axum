@@ -1,6 +1,7 @@
 use anyhow::Error;
 use serde::Serialize;
 use serde_json::Value;
+use tokio::time::Instant;
 
 #[derive(Debug, Serialize)]
 pub struct CommandError {
@@ -32,14 +33,16 @@ pub struct CommandSuccess {
     echo_id: String,
     status: &'static str,
     result: Value,
+    duration_ms: usize,
 }
 
 impl CommandSuccess {
-    pub fn new(id: String, result: Value) -> Self {
+    pub fn new(id: String, result: Value, duration: Instant) -> Self {
         Self {
             echo_id: id,
             status: "success",
             result,
+            duration_ms: duration.elapsed().as_millis() as usize,
         }
     }
 }
