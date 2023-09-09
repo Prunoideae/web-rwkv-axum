@@ -8,6 +8,7 @@ use std::collections::HashMap;
 
 use super::InferenceInterruption;
 
+mod global_penalty;
 pub mod types;
 
 #[derive(Debug, Deserialize)]
@@ -27,7 +28,7 @@ impl Transformers {
             registry: hashmap_ex! {
                 HashMap<&'static str, fn(AppState, Option<Value>) -> Result<Box<dyn Transformer>>>,
                     {
-
+                        "global" => global_penalty::initialize_global,
                     }
             },
             map: DashMap::with_capacity(128),
@@ -96,11 +97,17 @@ impl Transformers {
         }
     }
 
-    pub fn update_transformer(&self, id: &String, content: &Vec<u16>) -> Result<(), InferenceInterruption> {
+    pub fn update_transformer(
+        &self,
+        id: &String,
+        content: &Vec<u16>,
+    ) -> Result<(), InferenceInterruption> {
         if let Some(mut transformer) = self.map.get_mut(id) {
             transformer.update(content)
         } else {
-            Err(InferenceInterruption::Error(Error::msg("Transformer id doesn't exist!")))
+            Err(InferenceInterruption::Error(Error::msg(
+                "Transformer id doesn't exist!",
+            )))
         }
     }
 
@@ -117,7 +124,7 @@ impl Transformers {
         Ok(())
     }
 
-    pub fn transform_logits(&self, id: &String, logits: &mut Vec<f32>) -> Result<()> {
+    pub fn transform_logits(&self, id: &String, logits: Vec<f32>) -> Result<Vec<f32>> {
         if let Some(transformer) = self.map.get_mut(id) {
             Ok(transformer.transform(logits))
         } else {

@@ -20,10 +20,10 @@ fn transform_logits(
     transformers: &Vec<String>,
 ) -> Result<Vec<f32>> {
     for transformer in transformers {
-        app_state
+        logits = app_state
             .0
             .transformers
-            .transform_logits(transformer, &mut logits)?
+            .transform_logits(transformer, logits)?
     }
     Ok(logits)
 }
