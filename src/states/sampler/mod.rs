@@ -6,6 +6,8 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
 
+use super::InferenceInterruption;
+
 pub mod types;
 pub mod typical;
 
@@ -78,11 +80,11 @@ impl Samplers {
         }
     }
 
-    pub fn update_sampler(&self, id: &String, content: &Vec<Vec<u16>>) -> Result<()> {
+    pub fn update_sampler(&self, id: &String, content: &Vec<Vec<u16>>) -> Result<(), InferenceInterruption> {
         if let Some(mut sampler) = self.map.get_mut(id) {
             sampler.update(content)
         } else {
-            Err(Error::msg("Sampler id doesn't exist!"))
+            Err(InferenceInterruption::Error(Error::msg("Sampler id doesn't exist!")))
         }
     }
 

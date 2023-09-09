@@ -6,6 +6,8 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
 
+use super::InferenceInterruption;
+
 pub mod types;
 
 #[derive(Debug, Deserialize)]
@@ -94,11 +96,11 @@ impl Transformers {
         }
     }
 
-    pub fn update_transformer(&self, id: &String, content: &Vec<u16>) -> Result<()> {
+    pub fn update_transformer(&self, id: &String, content: &Vec<u16>) -> Result<(), InferenceInterruption> {
         if let Some(mut transformer) = self.map.get_mut(id) {
             transformer.update(content)
         } else {
-            Err(Error::msg("Transformer id doesn't exist!"))
+            Err(InferenceInterruption::Error(Error::msg("Transformer id doesn't exist!")))
         }
     }
 

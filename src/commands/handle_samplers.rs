@@ -2,7 +2,7 @@ use anyhow::{Error, Result};
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::app::AppState;
+use crate::{app::AppState, states::InferenceInterruption};
 
 use super::helpers;
 
@@ -87,6 +87,10 @@ pub async fn update_sampler(data: Option<Value>, state: AppState) -> Result<Valu
             .0
             .samplers
             .update_sampler(&id, &tokens)
+            .map_err(|interruption| match interruption {
+                InferenceInterruption::Exhaustion => Error::msg("Sampler is exhausted!"),
+                InferenceInterruption::Error(e) => e,
+            })
             .map(|_| Value::Null)
     } else {
         Err(Error::msg(

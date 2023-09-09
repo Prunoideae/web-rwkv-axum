@@ -3,7 +3,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{app::AppState, commands::helpers};
+use crate::{app::AppState, commands::helpers, states::InferenceInterruption};
 
 #[derive(Debug, Deserialize)]
 struct InferPayload {
@@ -35,9 +35,9 @@ async fn infer_and_sample(
     tokens: Vec<Vec<u16>>,
     sampler: &String,
     update_prompts: bool,
-) -> Result<u16> {
+) -> Result<u16, InferenceInterruption> {
     if update_prompts {
-        tokio::task::block_in_place(|| -> Result<()> {
+        tokio::task::block_in_place(|| -> Result<(), InferenceInterruption> {
             // This is the last place anything can stop the infer, if you want
             // to stop the infer in case of additional termination from
             // transformer/sampler, you must do it from updates, or the state
@@ -56,13 +56,16 @@ async fn infer_and_sample(
                     }
                     Ok(())
                 })
-                .collect::<Result<Vec<()>>>()?;
+                .collect::<Result<Vec<()>, InferenceInterruption>>()?;
             app_state.0.samplers.update_sampler(&sampler, &tokens)?;
             Ok(())
         })?;
     }
 
-    let logits = app_state.infer(state_ids.clone(), tokens).await?;
+    let logits = app_state
+        .infer(state_ids.clone(), tokens)
+        .await
+        .map_err(|e| InferenceInterruption::Error(e))?;
 
     // In case if transformation is needed, we block the current thread and use rayon to
     // transform each logits
@@ -74,12 +77,14 @@ async fn infer_and_sample(
                 .zip(transformers.par_iter())
                 .map(|(logits, t_ids)| transform_logits(app_state.clone(), logits, t_ids))
                 .collect::<Result<Vec<_>>>()
-        })?
+        })
+        .map_err(|e| InferenceInterruption::Error(e))?
     } else {
         logits.into_iter().map(|x| x.0).collect()
     };
     let probs = app_state.softmax(logits).await;
-    return tokio::task::block_in_place(move || app_state.0.samplers.sample_token(&sampler, probs));
+    return tokio::task::block_in_place(move || app_state.0.samplers.sample_token(&sampler, probs))
+        .map_err(|e| InferenceInterruption::Error(e));
 }
 
 #[derive(Debug, Serialize)]
@@ -149,7 +154,13 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
                     &sampler,
                     update_prompt,
                 )
-                .await?,
+                .await
+                .map_err(|e| match e {
+                    InferenceInterruption::Exhaustion => Error::msg(
+                        "Sampler/transformer is exhausted at the start, inference won't continue.",
+                    ),
+                    InferenceInterruption::Error(e) => e,
+                })?,
             );
 
             let mut last_token = *out_tokens.last().unwrap();
@@ -166,8 +177,9 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
                     out_tokens.clear()
                 }
 
-                // TODO: implement terminal here
-                // Now let's see how it would be if infer 10 tokens at once
+                // TODO: implement terminal here, also we need to ensure that
+                // out token will be empty when output, or it will be extremely tricky
+                // to hand over the out token.
                 if inferred_tokens >= 10 && out_tokens.is_empty() {
                     break (result, last_token, inferred_tokens);
                 }
@@ -185,11 +197,13 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
                     .await
                     {
                         Ok(token) => token,
-                        // In case of error, probably because transformer/sampler
-                        // dont wan't to do it anymore, break and return current results
-                        Err(_) => {
+                        // Exhausted, so stop infer.
+                        Err(InferenceInterruption::Exhaustion) => {
                             break (result, last_token, inferred_tokens);
                         }
+                        // A sampling/transformation error occurred, inference
+                        // is terminated
+                        Err(InferenceInterruption::Error(error)) => Err(error)?,
                     },
                 );
                 last_token = *out_tokens.last().unwrap();

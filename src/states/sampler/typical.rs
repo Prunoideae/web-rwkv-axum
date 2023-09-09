@@ -1,6 +1,6 @@
 use super::types::Sampler;
-use crate::app::AppState;
-use anyhow::{Error, Ok, Result};
+use crate::{app::AppState, states::InferenceInterruption};
+use anyhow::{Error, Result};
 use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::Value;
@@ -42,7 +42,7 @@ impl Sampler for TypicalSampler {
 
     fn clear(&mut self) {}
 
-    fn update(&mut self, _tokens: &Vec<Vec<u16>>) -> Result<()> {
+    fn update(&mut self, _tokens: &Vec<Vec<u16>>) -> Result<(), InferenceInterruption> {
         Ok(())
     }
 

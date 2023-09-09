@@ -2,7 +2,7 @@ use anyhow::{Error, Result};
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::app::AppState;
+use crate::{app::AppState, states::InferenceInterruption};
 
 use super::helpers;
 
@@ -89,6 +89,10 @@ pub async fn update_transformer(data: Option<Value>, state: AppState) -> Result<
             .0
             .transformers
             .update_transformer(&id, &tokens)
+            .map_err(|interrupt| match interrupt {
+                InferenceInterruption::Exhaustion => Error::msg("Transformer is exhausted!"),
+                InferenceInterruption::Error(e) => e,
+            })
             .map(|_| Value::Null)
     } else {
         Err(Error::msg(

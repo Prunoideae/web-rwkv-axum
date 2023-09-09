@@ -69,6 +69,7 @@ async def main():
 
         elapsed = 0
         inferred = 0
+        output = result["value"]
         result = result["last_token"]
         while inferred < tokens:
             data = {
@@ -81,11 +82,11 @@ async def main():
             data["tokens"] = [[result]]
             result = await invoke_command(ws, "infer", data)
             elapsed += result["duration_ms"]
-            output = result["result"]["value"]
-            inferred += result["result"]["inferred_tokens"]
-            result = result["result"]["last_token"]
-            print(output, flush=True, end="")
-
+            result = result["result"]
+            output += result["value"]
+            inferred += result["inferred_tokens"]
+            result = result["last_token"]
+        print(output, flush=True, end="")
         print(f"\nEnded in {(elapsed/1000):.2f}s, tps: {(inferred/(elapsed/1000)):.2f}")
 
         await invoke_command(ws, "delete_state", state_name)

@@ -97,15 +97,12 @@ impl ModelSpec {
     pub async fn create_context(&self) -> Result<Context> {
         let adapter = self.select_adapter(&Instance::new()).await?;
         println!("{:?}", adapter.get_info());
-        Ok(if self.quantization.is_none() {
-            ContextBuilder::new(adapter).with_default_pipelines()
-        } else {
-            ContextBuilder::new(adapter)
-                .with_default_pipelines()
-                .with_quant_pipelines()
+        let mut context = ContextBuilder::new(adapter).with_default_pipelines();
+        if self.quantization.is_some() {
+            println!("Using quantization.");
+            context = context.with_quant_pipelines();
         }
-        .build()
-        .await?)
+        Ok(context.build().await?)
     }
 
     pub async fn load_model(&self, context: &Context) -> Result<Model<'static>> {

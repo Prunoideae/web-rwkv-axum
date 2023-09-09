@@ -2235,8 +2235,8 @@ checksum = "ca6ad05a4870b2bf5fe995117d3728437bd27d7cd5f06f13c17443ef369775a1"
 
 [[package]]
 name = "web-rwkv"
-version = "0.2.9"
-source = "git+https://github.com/cryscan/web-rwkv#e61023f6ac59b1a29b0317b5d2ad3c8dc9a98b8a"
+version = "0.2.10"
+source = "git+https://github.com/cryscan/web-rwkv#e984d3bd3835bed76daaeedaf668be22ec79b55a"
 dependencies = [
  "ahash 0.8.3",
  "anyhow",
@@ -2285,7 +2285,7 @@ dependencies = [
 [[package]]
 name = "web-rwkv-derive"
 version = "0.2.0"
-source = "git+https://github.com/cryscan/web-rwkv#e61023f6ac59b1a29b0317b5d2ad3c8dc9a98b8a"
+source = "git+https://github.com/cryscan/web-rwkv#e984d3bd3835bed76daaeedaf668be22ec79b55a"
 dependencies = [
  "quote",
  "syn 2.0.31",
