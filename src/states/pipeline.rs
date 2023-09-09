@@ -149,7 +149,7 @@ impl Slots {
         } = request;
         let callback = Some(callback);
 
-        // Try to find the empty slot with same slot id
+        // Try to reuse the slot
         for idx in 0..self.batch_count {
             if self.slots[idx].is_none() {
                 if let Some(slot_id) = &self.batch_state_ids[idx] {
@@ -172,7 +172,8 @@ impl Slots {
         }
 
         // Find the first index being empty
-        for idx in 0..self.batch_count {
+        // Assertion for performance: last state should have a long cooldown
+        for idx in (0..self.batch_count).rev() {
             if self.slots[idx].is_none() {
                 self.slots[idx] = callback;
                 self.batch_tokens[idx] = tokens;
