@@ -30,7 +30,7 @@ impl Transformer for GlobalPenalty {
     }
 
     fn transform(&self, logits: Vec<f32>) -> Vec<f32> {
-        (Array1::from_vec(logits) + &self.record + &self.presence).to_vec()
+        (Array1::from_vec(logits) - &self.record - &self.presence).to_vec()
     }
 
     fn clear(&mut self) {

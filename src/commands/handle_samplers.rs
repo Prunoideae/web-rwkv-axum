@@ -59,13 +59,9 @@ pub async fn delete_sampler(data: Option<Value>, state: AppState) -> Result<Valu
         state
             .0
             .samplers
-            .delete_sampler(
-                data.as_str()
-                    .ok_or(Error::msg(
-                        "data should be a string representing sampler id you want to delete!",
-                    ))?
-                    .to_string(),
-            )
+            .delete_sampler(data.as_str().ok_or(Error::msg(
+                "data should be a string representing sampler id you want to delete!",
+            ))?)
             .map(|_| Value::Null)
     } else {
         Err(Error::msg("Field data is needed to specify sampler id!"))
@@ -74,19 +70,19 @@ pub async fn delete_sampler(data: Option<Value>, state: AppState) -> Result<Valu
 
 #[derive(Debug, Deserialize)]
 struct SamplerUpdate {
-    id: String,
+    sampler: String,
     tokens: Value,
 }
 
 #[inline]
 pub async fn update_sampler(data: Option<Value>, state: AppState) -> Result<Value> {
     if let Some(data) = data {
-        let SamplerUpdate { id, tokens } = serde_json::from_value(data)?;
+        let SamplerUpdate { sampler, tokens } = serde_json::from_value(data)?;
         let tokens = helpers::to_token_vec(&state, tokens)?;
         state
             .0
             .samplers
-            .update_sampler(&id, &tokens)
+            .update_sampler(&sampler, &tokens)
             .map_err(|interruption| match interruption {
                 InferenceInterruption::Exhaustion => Error::msg("Sampler is exhausted!"),
                 InferenceInterruption::Error(e) => e,
@@ -105,13 +101,9 @@ pub async fn reset_sampler(data: Option<Value>, state: AppState) -> Result<Value
         state
             .0
             .samplers
-            .reset_sampler(
-                data.as_str()
-                    .ok_or(Error::msg(
-                        "data should be a string representing sampler id you want to reset!",
-                    ))?
-                    .to_string(),
-            )
+            .reset_sampler(data.as_str().ok_or(Error::msg(
+                "data should be a string representing sampler id you want to reset!",
+            ))?)
             .map(|_| Value::Null)
     } else {
         Err(Error::msg("Field data is needed to specify sampler id!"))

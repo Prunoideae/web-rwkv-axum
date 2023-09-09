@@ -1,6 +1,10 @@
 # Config for web-rwkv-axum
 # It specifies what model to use, what token table to use, etc.
 
+[axum]
+
+[generation]
+
 [model]
 # Path to the model file
 # Must be a safetensor instead of pth.
@@ -20,7 +24,7 @@ preference = "HighPerformance"
 # adapter = 0
 # Quantize a certain layer of the model, a bit flag.
 # If omitted, no quantization is done.
-quantization = 4
+# quantization = 4
 
 [tokenizer]
 # Path to the vocab JSON.

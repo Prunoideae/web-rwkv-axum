@@ -12,6 +12,7 @@ struct InferPayload {
     transformers: Vec<Vec<String>>,
     sampler: String,
     update_prompt: bool,
+    reset_on_exhaustion: bool,
 }
 
 fn transform_logits(
@@ -35,6 +36,7 @@ async fn infer_and_sample(
     tokens: Vec<Vec<u16>>,
     sampler: &String,
     update_prompts: bool,
+    reset_on_exhaustion: bool,
 ) -> Result<u16, InferenceInterruption> {
     if update_prompts {
         tokio::task::block_in_place(|| -> Result<(), InferenceInterruption> {
@@ -47,18 +49,29 @@ async fn infer_and_sample(
             // it should know it will fail no matter what logits/probs are
             // given at sample/transformation time. and if it knows, it must
             // throw an error.
-            transformers
+            let transformer_update = transformers
                 .par_iter()
                 .zip(tokens.par_iter())
                 .map(|(t_ids, tokens)| {
                     for t_id in t_ids {
-                        app_state.0.transformers.update_transformer(t_id, tokens)?;
+                        let result = app_state.0.transformers.update_transformer(t_id, tokens);
+                        if let Err(InferenceInterruption::Exhaustion) = result {
+                            if reset_on_exhaustion {
+                                app_state.0.transformers.reset_transformer(t_id).unwrap();
+                            }
+                        }
+                        result?
                     }
                     Ok(())
                 })
-                .collect::<Result<Vec<()>, InferenceInterruption>>()?;
-            app_state.0.samplers.update_sampler(&sampler, &tokens)?;
-            Ok(())
+                .collect::<Result<Vec<()>, InferenceInterruption>>();
+            let sampler_update = app_state.0.samplers.update_sampler(&sampler, &tokens);
+            if let Err(InferenceInterruption::Exhaustion) = sampler_update {
+                if reset_on_exhaustion {
+                    app_state.0.samplers.reset_sampler(&sampler).unwrap();
+                }
+            }
+            transformer_update.and(sampler_update)
         })?;
     }
 
@@ -102,6 +115,7 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
             transformers,
             sampler,
             update_prompt,
+            reset_on_exhaustion,
         } = serde_json::from_value::<InferPayload>(data)?;
 
         if tokens.len() != states.len() || states.len() != transformers.len() {
@@ -153,6 +167,7 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
                     tokens,
                     &sampler,
                     update_prompt,
+                    false,
                 )
                 .await
                 .map_err(|e| match e {
@@ -193,6 +208,7 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
                         vec![vec![last_token]; states.len()],
                         &sampler,
                         update_prompt,
+                        reset_on_exhaustion,
                     )
                     .await
                     {

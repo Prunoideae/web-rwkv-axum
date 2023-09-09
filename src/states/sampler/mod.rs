@@ -55,24 +55,24 @@ impl Samplers {
     }
 
     #[inline(always)]
-    pub fn get_sampler<'a>(&'a self, id: &String) -> Option<RefMut<'_, String, Box<dyn Sampler>>> {
+    pub fn get_sampler<'a>(&'a self, id: &str) -> Option<RefMut<'_, String, Box<dyn Sampler>>> {
         self.map.get_mut(id)
     }
 
     #[inline(always)]
-    pub fn has_sampler(&self, id: &String) -> bool {
+    pub fn has_sampler(&self, id: &str) -> bool {
         self.map.contains_key(id)
     }
 
-    pub fn delete_sampler(&self, id: String) -> Result<()> {
+    pub fn delete_sampler(&self, id: &str) -> Result<()> {
         self.map
-            .remove(&id)
+            .remove(id)
             .ok_or(Error::msg("Sampler id doesn't exist!"))
             .map(|_| ())
     }
 
-    pub fn reset_sampler(&self, id: String) -> Result<()> {
-        if let Some(mut sampler) = self.map.get_mut(&id) {
+    pub fn reset_sampler(&self, id: &str) -> Result<()> {
+        if let Some(mut sampler) = self.map.get_mut(id) {
             sampler.clear();
             Ok(())
         } else {
@@ -80,11 +80,17 @@ impl Samplers {
         }
     }
 
-    pub fn update_sampler(&self, id: &String, content: &Vec<Vec<u16>>) -> Result<(), InferenceInterruption> {
+    pub fn update_sampler(
+        &self,
+        id: &str,
+        content: &Vec<Vec<u16>>,
+    ) -> Result<(), InferenceInterruption> {
         if let Some(mut sampler) = self.map.get_mut(id) {
             sampler.update(content)
         } else {
-            Err(InferenceInterruption::Error(Error::msg("Sampler id doesn't exist!")))
+            Err(InferenceInterruption::Error(Error::msg(
+                "Sampler id doesn't exist!",
+            )))
         }
     }
 

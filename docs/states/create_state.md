@@ -2,7 +2,7 @@
 
 ## `create_state`
 
-This command creates a state with a ID specified.
+This command creates a state with an ID specified.
 
 The ID must be unique, and it will be the identifier of any subsequent commands related to the state.
 

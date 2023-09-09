@@ -8,18 +8,18 @@ use super::helpers;
 
 #[derive(Debug, Deserialize)]
 struct TransformerArgs {
-    type_id: String,
-    params: Option<Value>,
+    id: String,
+    data: Option<Value>,
 }
 
 #[inline]
 pub async fn create_transformer(data: Option<Value>, state: AppState) -> Result<Value> {
     if let Some(data) = data {
-        let TransformerArgs { type_id, params } = serde_json::from_value(data)?;
+        let TransformerArgs { id, data } = serde_json::from_value(data)?;
         state
             .0
             .transformers
-            .create_transformer(type_id, state.clone(), params)
+            .create_transformer(id, state.clone(), data)
             .map(|_| Value::Null)
     } else {
         Err(Error::msg(
@@ -59,13 +59,9 @@ pub async fn delete_transformer(data: Option<Value>, state: AppState) -> Result<
         state
             .0
             .transformers
-            .delete_transformer(
-                data.as_str()
-                    .ok_or(Error::msg(
-                        "data should be a string representing transformer id you want to delete!",
-                    ))?
-                    .to_string(),
-            )
+            .delete_transformer(data.as_str().ok_or(Error::msg(
+                "data should be a string representing transformer id you want to delete!",
+            ))?)
             .map(|_| Value::Null)
     } else {
         Err(Error::msg(
@@ -107,14 +103,9 @@ pub async fn reset_transformer(data: Option<Value>, state: AppState) -> Result<V
         state
             .0
             .transformers
-            .reset_transformer(
-                data.as_str()
-                    .ok_or(Error::msg(
-                        "data should be a string representing transformer id you want to reset!",
-                    ))?
-                    .to_string(),
-            )
-            .await
+            .reset_transformer(data.as_str().ok_or(Error::msg(
+                "data should be a string representing transformer id you want to reset!",
+            ))?)
             .map(|_| Value::Null)
     } else {
         Err(Error::msg(
