@@ -10,6 +10,7 @@ use super::InferenceInterruption;
 
 mod global_penalty;
 pub mod types;
+mod bnf_constraint;
 
 #[derive(Debug, Deserialize)]
 struct TransformerJson {
