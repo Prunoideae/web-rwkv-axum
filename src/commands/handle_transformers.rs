@@ -2,7 +2,7 @@ use anyhow::{Error, Result};
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::{app::AppState, states::InferenceInterruption};
+use crate::{app::AppState, components::InferenceInterruption};
 
 use super::helpers;
 

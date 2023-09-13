@@ -1,5 +1,5 @@
 use super::types::Sampler;
-use crate::{app::AppState, states::InferenceInterruption};
+use crate::{app::AppState, components::InferenceInterruption};
 use anyhow::{Error, Result};
 use itertools::Itertools;
 use serde::Deserialize;

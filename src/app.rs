@@ -8,7 +8,7 @@ use web_rwkv::{context::Context, model::Model, tokenizer::Tokenizer};
 use crate::{
     config::ModelConfig,
     helper::{Logits, State},
-    states::{
+    components::{
         infer::{InferContext, InferRequest, InferResult},
         permit::BatchRequest,
         sampler::Samplers,

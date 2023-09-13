@@ -5,6 +5,7 @@ pub mod permit;
 pub mod pipeline;
 pub mod sampler;
 pub mod softmax;
+pub mod state;
 pub mod transformer;
 
 pub enum InferenceInterruption {

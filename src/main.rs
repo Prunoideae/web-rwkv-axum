@@ -8,7 +8,7 @@ use web_rwkv_axum::{
     app::AppState,
     cli::LaunchArgs,
     routes::{hello_world, ws},
-    states::{permit::BatchRequest, pipeline::Pipeline, softmax::Softmax},
+    components::{permit::BatchRequest, pipeline::Pipeline, softmax::Softmax},
 };
 
 async fn app(args: LaunchArgs) -> Result<()> {
