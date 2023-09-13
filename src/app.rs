@@ -29,18 +29,19 @@ pub struct InnerState {
 pub struct AppState(pub Arc<InnerState>);
 
 impl AppState {
-    pub async fn new(
-        config: &ModelConfig,
-        softmax_queue: Sender<Vec<(Vec<f32>, oneshot::Sender<Vec<f32>>)>>,
-        context: Context,
-        model: Arc<Model<'static>>,
-        batch_request: BatchRequest,
-    ) -> Result<Self> {
+    pub async fn new(config: &ModelConfig) -> Result<Self> {
+        let context = config.model.create_context().await?;
+        let model = Arc::new(config.model.load_model(&context).await?);
+        let batch_request = BatchRequest::new();
+
+        let softmax = Softmax::new(model.clone(), config.model.get_batch_size()).await;
+        let (softmax_sender, _) = softmax.run().await;
+
         Ok(AppState(Arc::new(InnerState {
             config: config.clone(),
             samplers: Arc::new(Samplers::new()),
             transformers: Arc::new(Transformers::new()),
-            softmax_queue,
+            softmax_queue: softmax_sender,
             tokenizer: Arc::new(config.tokenizer.load_tokenizer().await?),
             context,
             model,
@@ -54,27 +55,11 @@ impl AppState {
         Ok(())
     }
 
-    pub async fn create_state(&self, id: String) -> Result<()> {
-        self.0.states.create_state(&id)
-    }
-
-    #[inline(always)]
-    pub fn has_state(&self, id: &String) -> bool {
-        self.0.states.has_state(&id)
-    }
-
-    pub async fn copy_state(&self, src: String, dst: String) -> Result<()> {
-        self.0.states.copy_state(&src, &dst)
-    }
-
-    pub async fn delete_state(&self, id: String) -> Result<()> {
-        self.0.states.delete_state(&id)
-    }
-
     pub fn tokenize(&self, input: &Vec<u8>) -> Result<Vec<u16>> {
         Ok(self.0.tokenizer.encode(&input)?)
     }
 
+    #[inline(always)]
     pub async fn infer(
         &self,
         state_keys: Vec<String>,

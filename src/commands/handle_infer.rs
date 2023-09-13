@@ -123,7 +123,7 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
             ));
         }
 
-        if states.iter().any(|x| !state.has_state(x)) {
+        if states.iter().any(|x| !state.0.states.has_state(x)) {
             return Err(Error::msg("One or more state ids not exist!"));
         }
 
