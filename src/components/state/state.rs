@@ -2,12 +2,13 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use dashmap::{DashMap, DashSet};
+use tokio::sync::mpsc;
 use web_rwkv::{
     context::Context,
     model::{Model, ModelInfo, ModelState},
 };
 
-use super::pool::InferPool;
+use super::pool::{InferPool, InferRequest};
 
 struct InnerState {
     id: String,
@@ -71,4 +72,5 @@ pub struct InnerStates {
     pub pool: InferPool,
     pub state_ids: DashSet<String>,
     pub states: DashMap<String, InferState>,
+    pub request_queue: mpsc::Sender<Vec<InferRequest>>,
 }

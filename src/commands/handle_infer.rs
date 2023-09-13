@@ -86,14 +86,13 @@ async fn infer_and_sample(
         tokio::task::block_in_place(|| {
             logits
                 .into_par_iter()
-                .map(|x| x.0)
                 .zip(transformers.par_iter())
                 .map(|(logits, t_ids)| transform_logits(app_state.clone(), logits, t_ids))
                 .collect::<Result<Vec<_>>>()
         })
         .map_err(|e| InferenceInterruption::Error(e))?
     } else {
-        logits.into_iter().map(|x| x.0).collect()
+        logits
     };
     let probs = app_state.softmax(logits).await;
     return tokio::task::block_in_place(move || app_state.0.samplers.sample_token(&sampler, probs))

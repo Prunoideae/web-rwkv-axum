@@ -7,8 +7,8 @@ use tokio::runtime::Builder;
 use web_rwkv_axum::{
     app::AppState,
     cli::LaunchArgs,
+    components::{permit::BatchRequest, softmax::Softmax},
     routes::{hello_world, ws},
-    components::{permit::BatchRequest, pipeline::Pipeline, softmax::Softmax},
 };
 
 async fn app(args: LaunchArgs) -> Result<()> {
@@ -20,17 +20,9 @@ async fn app(args: LaunchArgs) -> Result<()> {
     let batch_lock = BatchRequest::new();
 
     let (softmax_sender, softmax_handle) = softmax.run().await;
-    let (infer_sender, model_handle) = Pipeline::start(
-        model_config.model.get_batch_size(),
-        context.clone(),
-        model.clone(),
-        batch_lock.clone(),
-    )
-    .await;
 
     let shared_state = AppState::new(
         &model_config,
-        infer_sender.clone(),
         softmax_sender.clone(),
         context.clone(),
         model.clone(),
@@ -47,9 +39,7 @@ async fn app(args: LaunchArgs) -> Result<()> {
         .serve(app.into_make_service())
         .await?;
 
-    drop(infer_sender);
     drop(softmax_sender);
-    model_handle.await?;
     softmax_handle.await?;
     Ok(())
 }

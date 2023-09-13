@@ -1,8 +1,15 @@
-use self::state::{InferState, InnerStates};
-use crate::config::ModelConfig;
+use self::{
+    pool::InferPool,
+    state::{InferState, InnerStates},
+};
+use crate::{components::state::pool::InferRequest, config::ModelConfig};
 use anyhow::{Error, Result};
 use dashmap::{DashMap, DashSet};
+use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use std::sync::Arc;
+use tokio::sync::oneshot;
+
+use super::permit::BatchRequest;
 
 mod pool;
 mod state;
@@ -11,17 +18,20 @@ mod state;
 pub struct InferStates(Arc<InnerStates>);
 
 impl InferStates {
-    pub async fn new(config: &ModelConfig) -> Result<Self> {
+    pub async fn new(config: &ModelConfig, batch_lock: BatchRequest) -> Result<Self> {
         let context = config.model.create_context().await?;
         let model = Arc::new(config.model.load_model(&context).await?);
         let batch_size = config.model.get_batch_size();
+        let pool = InferPool::new(context.clone(), model.clone(), 8, batch_size, batch_lock);
+        let sender = pool.start_loop().await;
 
         Ok(Self(Arc::new(InnerStates {
-            context,
-            model,
-            pool: todo!(),
+            context: context.clone(),
+            model: model.clone(),
+            pool,
             state_ids: DashSet::with_capacity(128),
             states: DashMap::with_capacity(128),
+            request_queue: sender,
         })))
     }
 
@@ -30,7 +40,27 @@ impl InferStates {
         states: &Vec<String>,
         tokens: Vec<Vec<u16>>,
     ) -> Result<Vec<Vec<f32>>> {
-        todo!()
+        let states = states
+            .par_iter()
+            .map(|state_id| self.get_state(&state_id))
+            .collect::<Vec<_>>();
+
+        let (receivers, requests): (Vec<oneshot::Receiver<Vec<f32>>>, Vec<InferRequest>) = states
+            .into_iter()
+            .zip(tokens.into_iter())
+            .map(|(state, tokens)| {
+                let (sender, receiver) = oneshot::channel();
+                (receiver, InferRequest::new(state, tokens, sender))
+            })
+            .unzip();
+
+        self.0.request_queue.send(requests).await?;
+
+        Ok(futures::future::join_all(receivers)
+            .await
+            .into_iter()
+            .map(|x| x.map_err(|_| Error::msg("Error while receiving message!")))
+            .collect::<Result<_>>()?)
     }
 
     pub fn create_state(&self, state_id: &str) -> Result<()> {
@@ -78,5 +108,10 @@ impl InferStates {
                 InferState::new(state_id.to_string(), self.0.context.clone(), &self.0.model)
             })
             .clone()
+    }
+
+    #[inline(always)]
+    pub fn has_state(&self, state_id: &str) -> bool {
+        self.0.state_ids.contains(state_id)
     }
 }
