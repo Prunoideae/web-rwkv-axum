@@ -8,14 +8,11 @@ use crate::{app::AppState, commands::helpers};
 pub async fn create_state(data: Option<Value>, state: AppState) -> Result<Value> {
     if let Some(data) = data {
         state
-            .create_state(
-                data.as_str()
-                    .ok_or(Error::msg(
-                        "data should be a string representing state id you want to create!",
-                    ))?
-                    .to_string(),
-            )
-            .await
+            .0
+            .states
+            .create_state(data.as_str().ok_or(Error::msg(
+                "data should be a string representing state id you want to create!",
+            ))?)
             .map(|_| Value::Null)
     } else {
         Err(Error::msg("Field data is needed to specify state id!"))
@@ -36,8 +33,9 @@ pub async fn copy_state(data: Option<Value>, state: AppState) -> Result<Value> {
             destination,
         } = serde_json::from_value(data)?;
         state
-            .copy_state(source, destination)
-            .await
+            .0
+            .states
+            .copy_state(&source, &destination)
             .map(|_| Value::Null)
     } else {
         Err(Error::msg(
@@ -50,14 +48,11 @@ pub async fn copy_state(data: Option<Value>, state: AppState) -> Result<Value> {
 pub async fn delete_state(data: Option<Value>, state: AppState) -> Result<Value> {
     if let Some(data) = data {
         state
-            .delete_state(
-                data.as_str()
-                    .ok_or(Error::msg(
-                        "data should be a string representing state id you want to delete!",
-                    ))?
-                    .to_string(),
-            )
-            .await
+            .0
+            .states
+            .delete_state(data.as_str().ok_or(Error::msg(
+                "data should be a string representing state id you want to delete!",
+            ))?)
             .map(|_| Value::Null)
     } else {
         Err(Error::msg("Field data is needed to specify state id!"))
@@ -75,7 +70,10 @@ pub async fn update_state(data: Option<Value>, state: AppState) -> Result<Value>
     if let Some(data) = data {
         let StateUpdate { states, tokens } = serde_json::from_value(data)?;
         let tokens = helpers::to_token_vec(&state, tokens)?;
-        state.update_state(states, tokens).await.map(|_| Value::Null)
+        state
+            .update_state(states, tokens)
+            .await
+            .map(|_| Value::Null)
     } else {
         Err(Error::msg(
             "Field data is needed to specify state id and tokens!",

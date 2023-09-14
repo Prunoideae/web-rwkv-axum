@@ -1,6 +1,6 @@
 pub mod commands;
 pub mod routes;
-pub mod states;
+pub mod components;
 pub mod app;
 pub mod cli;
 pub mod config;

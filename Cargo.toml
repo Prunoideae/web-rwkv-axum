@@ -16,6 +16,7 @@ bson = "2.7.0"
 clap = {version = "4.4.1", features = ["derive"]}
 dashmap = {version = "5.5.3", features = ["rayon", "serde"]}
 fastrand = "2.0.0"
+futures = "0.3.28"
 futures-util = "0.3.28"
 itertools = "0.11.0"
 lazy_static = "1.4.0"

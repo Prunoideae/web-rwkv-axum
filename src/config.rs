@@ -70,6 +70,7 @@ pub struct ModelSpec {
     max_batch_count: props::BatchSize,
     #[serde(default)]
     max_chunk_count: props::ChunkSize,
+    max_concurrency: Option<usize>,
     preference: Option<props::Preference>,
     adapter: Option<usize>,
     quantization: Option<u64>,
@@ -82,6 +83,10 @@ impl ModelSpec {
 
     pub fn get_chunk_size(&self) -> usize {
         self.max_chunk_count.get()
+    }
+
+    pub fn get_max_concurrency(&self) -> usize {
+        self.max_concurrency.unwrap_or(8)
     }
 
     pub async fn select_adapter(&self, instance: &Instance) -> Result<Adapter> {

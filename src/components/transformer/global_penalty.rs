@@ -3,7 +3,7 @@ use ndarray::Array1;
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::{app::AppState, states::InferenceInterruption};
+use crate::{app::AppState, components::InferenceInterruption};
 
 use super::types::Transformer;
 
