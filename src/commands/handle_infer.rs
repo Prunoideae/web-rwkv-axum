@@ -11,6 +11,7 @@ struct InferPayload {
     states: Vec<String>,
     transformers: Vec<Vec<String>>,
     sampler: String,
+    terminal: String,
     update_prompt: bool,
     reset_on_exhaustion: bool,
 }
@@ -113,6 +114,7 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
             states,
             transformers,
             sampler,
+            terminal,
             update_prompt,
             reset_on_exhaustion,
         } = serde_json::from_value::<InferPayload>(data)?;
@@ -191,10 +193,14 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
                     out_tokens.clear()
                 }
 
-                // TODO: implement terminal here, also we need to ensure that
-                // out token will be empty when output, or it will be extremely tricky
+                // out token must be empty when output, or it will be extremely tricky
                 // to hand over the out token.
-                if inferred_tokens >= 10 && out_tokens.is_empty() {
+                if out_tokens.is_empty()
+                    && state
+                        .0
+                        .terminals
+                        .terminate(&terminal, &result, inferred_tokens)?
+                {
                     break (result, last_token, inferred_tokens);
                 }
 

@@ -13,7 +13,6 @@ pub struct TypicalSampler {
 }
 
 impl Sampler for TypicalSampler {
-    // TODO: Make it return a vec of u16
     fn sample(&self, probs: Vec<Vec<f32>>) -> u16 {
         let probs = &probs[0];
         let sorted = probs
