@@ -7,6 +7,7 @@ use crate::{app::AppState, register_handlers};
 mod handle_infer;
 mod handle_samplers;
 mod handle_states;
+mod handle_terminals;
 mod handle_transformers;
 mod helpers;
 
@@ -42,6 +43,11 @@ impl TextCommand {
                 handle_samplers::update_sampler,
                 handle_samplers::delete_sampler,
                 handle_samplers::reset_sampler,
+                //Terminals
+                handle_terminals::create_terminal,
+                handle_terminals::copy_terminal,
+                handle_terminals::delete_terminal,
+                handle_terminals::reset_terminal,
                 //Infer
                 handle_infer::infer,
             ]

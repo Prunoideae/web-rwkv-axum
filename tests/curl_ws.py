@@ -15,6 +15,7 @@ uri = "ws://127.0.0.1:5678/ws"
 state_name = str(randint(0, 2**31))
 sampler_name = str(randint(0, 2**31))
 transformer_name = str(randint(0, 2**31))
+terminal_name = str(randint(0, 2**31))
 
 
 async def invoke_command(ws: WebSocketClientProtocol, command: str, payload: Any):
@@ -55,12 +56,25 @@ commands = [
         },
     ],
     [
+        "create_terminal",
+        {
+            "id": terminal_name,
+            "data": {
+                "type_id": "lengthed",
+                "params": {
+                    "length": 32,
+                },
+            },
+        },
+    ],
+    [
         "infer",
         {
             "tokens": [prompt],
             "states": [state_name],
             "transformers": [[transformer_name]],
             "sampler": sampler_name,
+            "terminal": terminal_name,
             "update_prompt": True,
             "reset_on_exhaustion": True,
         },
@@ -92,23 +106,26 @@ async def main():
                 "states": [state_name],
                 "transformers": [[transformer_name]],
                 "sampler": sampler_name,
+                "terminal": terminal_name,
                 "update_prompt": True,
                 "reset_on_exhaustion": True,
             }
             data["tokens"] = [[result]]
-            result = await invoke_command(ws, "infer", data)
-            print(result)
+            try:
+                result = await invoke_command(ws, "infer", data)
+            except asyncio.CancelledError:
+                print(result)
+                return
             elapsed += result["duration_ms"]
             result = result["result"]
             output += result["value"]
             inferred += result["inferred_tokens"]
             result = result["last_token"]
-        print(output, flush=True, end="")
-        print(f"\nEnded in {(elapsed/1000):.2f}s, tps: {(inferred/(elapsed/1000)):.2f}")
 
         await invoke_command(ws, "delete_state", state_name)
         await invoke_command(ws, "delete_sampler", sampler_name)
         await invoke_command(ws, "delete_transformer", transformer_name)
+        await invoke_command(ws, "delete_terminal", terminal_name)
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use anyhow::Result;
 
-use crate::states::InferenceInterruption;
+use crate::components::InferenceInterruption;
 
 /// Sample a token from probablities (after softmax).
 ///
@@ -36,7 +36,6 @@ pub trait Sampler: Send + Sync + Debug {
     /// like `typical` or `nucleus` would do, but there are also sampling methods like
     /// `CFG Sampling` which samples from multiple parallel states. Note that only 1
     /// token will be sampled from the list and selected as the next token for *all states*.
-    // TODO: Change it to Vec<u16> to increase concurrency.
     fn sample(&self, probs: Vec<Vec<f32>>) -> u16;
     /// Clears the `Sampler`. This will reset the internal state of the sampler to *when it 
     /// is just constructed from params*.

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::fmt::Debug;
 
-use crate::states::InferenceInterruption;
+use crate::components::InferenceInterruption;
 
 /// Transforms a logits distribution.
 ///

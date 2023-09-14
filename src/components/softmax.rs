@@ -7,6 +7,7 @@ use tokio::{
 };
 use web_rwkv::model::Model;
 
+#[derive(Clone)]
 pub struct Softmax {
     model: Arc<Model<'static>>,
     max_batch_size: usize,
