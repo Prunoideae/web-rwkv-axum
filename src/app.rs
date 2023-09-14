@@ -43,9 +43,15 @@ impl AppState {
             transformers: Arc::new(Transformers::new()),
             softmax_queue: softmax_sender,
             tokenizer: Arc::new(config.tokenizer.load_tokenizer().await?),
-            context,
-            model,
-            states: InferStates::new(config, batch_request.clone()).await?,
+            context: context.clone(),
+            model: model.clone(),
+            states: InferStates::new(
+                config,
+                context.clone(),
+                model.clone(),
+                batch_request.clone(),
+            )
+            .await?,
             batch_request: batch_request.clone(),
         })))
     }

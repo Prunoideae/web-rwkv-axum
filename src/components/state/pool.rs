@@ -79,7 +79,9 @@ impl Slots {
     }
 
     fn can_start_infer(&self) -> bool {
-        return self.tasks >= self.max_concurrent || self.tasks >= self.batch_lock.get();
+        return self.tasks >= self.max_concurrent
+            || self.tasks >= self.batch_lock.get()
+            || self.empty_slots() == 0;
     }
 
     #[inline(always)]
