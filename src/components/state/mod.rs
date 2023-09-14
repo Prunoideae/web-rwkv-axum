@@ -29,7 +29,7 @@ impl InferStates {
             context.clone(),
             model.clone(),
             config.model.get_max_concurrency(),
-            config.model.get_chunk_size(),
+            config.model.get_batch_size(),
             batch_lock,
         );
         let sender = pool.start_loop().await;

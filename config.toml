@@ -13,7 +13,7 @@ path = "assets/RWKV-4-World-7B-v1-20230626-ctx4096.st"
 # as pool for batch inference. Larger size reduce the need
 # of buffer swapping at the cost of increased GPU memory
 # usage. Default 32.
-max_batch_count = 8
+max_batch_count = 32
 # Max concurrency means the maximum concurrent tasks that
 # can be inferred at the same time. Larger size reduces
 # response performance but increase GPU utilization to a

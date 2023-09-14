@@ -8,6 +8,7 @@ use crate::{app::AppState, hashmap_ex};
 
 use self::types::Terminal;
 
+mod lengthed;
 mod types;
 
 #[derive(Debug, Deserialize)]
@@ -27,7 +28,7 @@ impl Terminals {
             registry: hashmap_ex! {
                 HashMap<&str, fn(AppState, Option<Value>) -> Result<Box<dyn Terminal>>>,
                     {
-
+                        "lengthed" => lengthed::initialize_lenghted
                     }
             },
             map: DashMap::with_capacity(128),
