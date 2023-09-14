@@ -30,6 +30,7 @@ impl Transformers {
                 HashMap<&'static str, fn(AppState, Option<Value>) -> Result<Box<dyn Transformer>>>,
                     {
                         "global_penalty" => global_penalty::initialize_global,
+                        "BNF"=> bnf_constraint::BNFConstraint::initialize
                     }
             },
             map: DashMap::with_capacity(128),
