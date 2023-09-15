@@ -293,9 +293,9 @@ dependencies = [
 
 [[package]]
 name = "bnf_sampler"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d51b050909debd402b16a2d7ce8fd4e3e0ed915358a043943b86bdd9f1269f57"
+checksum = "d50fd513bfece77550bc4b36ec7a7595c3a0a1d382bc76b6510273a5de33097d"
 dependencies = [
  "anyhow",
  "bit-set",
