@@ -52,21 +52,32 @@ impl BNFConstraint {
             id_to_token_string,
         });
         let data = serde_json::from_value::<BNFData>(data.ok_or(Error::msg(
-            "Field must present to specify alpha presence and occurrence!",
+            "Invalid BNFData. Example format:{
+                grammar: String,
+                stack_arena_capacity: usize,
+                grammar_stack_arena_capacity: usize,
+                start_nonterminal: String,
+                stack_to_bytes_cache_enabled: bool,
+            }",
         ))?)?;
-        Ok(Box::new(BNFConstraint {
-            sampler: Sampler::new(
-                Grammar::new(
-                    &data.grammar,
-                    vocabulary.clone(),
-                    data.grammar_stack_arena_capacity,
-                ),
-                data.start_nonterminal,
-                vocabulary,
-                data.stack_arena_capacity,
-                data.stack_to_bytes_cache_enabled,
+        let mut sampler = Sampler::new(
+            Grammar::new(
+                &data.grammar,
+                vocabulary.clone(),
+                data.grammar_stack_arena_capacity,
             ),
-            current_token_ids: BitSet::new(),
+            data.start_nonterminal,
+            vocabulary,
+            data.stack_arena_capacity,
+            data.stack_to_bytes_cache_enabled,
+        );
+        let current_token_ids = match sampler.all_possible_next_tokens(None) {
+            PossibleTokensResult::Continue(token_ids) => token_ids.clone(),
+            _ => unreachable!(),
+        };
+        Ok(Box::new(BNFConstraint {
+            sampler,
+            current_token_ids,
         }))
     }
 }
@@ -92,6 +103,7 @@ impl Transformer for BNFConstraint {
     }
 
     fn transform(&self, logits: Vec<f32>) -> Vec<f32> {
+        println!("{}",logits.len());
         let mut logits = logits;
         for (i, logit) in logits.iter_mut().enumerate() {
             if !self.current_token_ids.contains(i) {
@@ -103,7 +115,10 @@ impl Transformer for BNFConstraint {
 
     fn clear(&mut self) {
         self.sampler.reset();
-        self.current_token_ids.clear();
+        self.current_token_ids = match self.sampler.all_possible_next_tokens(None) {
+            PossibleTokensResult::Continue(token_ids) => token_ids.clone(),
+            _ => unreachable!(),
+        };
     }
 
     fn clone(&self) -> Box<dyn Transformer> {
