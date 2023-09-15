@@ -293,10 +293,11 @@ dependencies = [
 
 [[package]]
 name = "bnf_sampler"
-version = "0.2.4"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a3c1a268562fedab0e5b8ef9e668fb351bd00976efc272de32652b4416a194d"
+checksum = "d51b050909debd402b16a2d7ce8fd4e3e0ed915358a043943b86bdd9f1269f57"
 dependencies = [
+ "anyhow",
  "bit-set",
  "bnf",
  "itertools",

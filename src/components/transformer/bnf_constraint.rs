@@ -65,7 +65,7 @@ impl BNFConstraint {
                 &data.grammar,
                 vocabulary.clone(),
                 data.grammar_stack_arena_capacity,
-            ),
+            )?,
             data.start_nonterminal,
             vocabulary,
             data.stack_arena_capacity,
