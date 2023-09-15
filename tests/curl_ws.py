@@ -42,7 +42,7 @@ commands = [
             },
         },
     ],
-    [
+    [        
         "create_transformer",
         {
             "id": transformer_name,
@@ -56,13 +56,29 @@ commands = [
         },
     ],
     [
+        "create_transformer",
+        {
+            "id": transformer_name+"0",
+            "data": {
+                "type_id": "BNF",
+                "params": {
+                    "grammar": "<base>::='1'|'2'|'3'|'4'\n<sequence>::=<base>|<base><sequence>\n<start>::=<sequence>'5'",
+                    "stack_arena_capacity": 1024*1024,
+                    "grammar_stack_arena_capacity": 1024,
+                    "start_nonterminal":"start",
+                    "stack_to_bytes_cache_enabled":True
+                },
+            },
+        },
+    ],
+    [
         "create_terminal",
         {
             "id": terminal_name,
             "data": {
                 "type_id": "lengthed",
                 "params": {
-                    "length": 32,
+                    "length": 128,
                 },
             },
         },
@@ -72,7 +88,7 @@ commands = [
         {
             "tokens": [prompt],
             "states": [state_name],
-            "transformers": [[transformer_name]],
+            "transformers": [[transformer_name,transformer_name+"0"]],
             "sampler": sampler_name,
             "terminal": terminal_name,
             "update_prompt": True,
@@ -104,7 +120,7 @@ async def main():
             data = {
                 "tokens": None,
                 "states": [state_name],
-                "transformers": [[transformer_name]],
+                "transformers": [[transformer_name, transformer_name+"0"]],
                 "sampler": sampler_name,
                 "terminal": terminal_name,
                 "update_prompt": True,

@@ -293,9 +293,9 @@ dependencies = [
 
 [[package]]
 name = "bnf_sampler"
-version = "0.1.2"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6cc1fd4bff3aa1c77d2779566148c2740df466c0500c754298fd11c69c53d690"
+checksum = "1a3c1a268562fedab0e5b8ef9e668fb351bd00976efc272de32652b4416a194d"
 dependencies = [
  "bit-set",
  "bnf",
@@ -2351,6 +2351,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "axum",
+ "bit-set",
  "bnf_sampler",
  "bson",
  "clap",
@@ -2364,8 +2365,10 @@ dependencies = [
  "memmap2",
  "ndarray",
  "num_cpus",
+ "qp-trie",
  "rayon",
  "rhai",
+ "rustc-hash",
  "serde",
  "serde_json",
  "tokio",

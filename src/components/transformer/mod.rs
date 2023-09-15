@@ -10,6 +10,7 @@ use super::InferenceInterruption;
 
 mod global_penalty;
 pub mod types;
+mod bnf_constraint;
 
 #[derive(Debug, Deserialize)]
 struct TransformerJson {
@@ -29,6 +30,7 @@ impl Transformers {
                 HashMap<&'static str, fn(AppState, Option<Value>) -> Result<Box<dyn Transformer>>>,
                     {
                         "global_penalty" => global_penalty::initialize_global,
+                        "BNF"=> bnf_constraint::BNFConstraint::initialize
                     }
             },
             map: DashMap::with_capacity(128),

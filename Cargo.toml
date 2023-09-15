@@ -10,7 +10,8 @@ version = "0.1.0"
 anyhow = "1.0.75"
 async-trait = "0.1.73"
 axum = {version = "0.6.20", features = ["ws"]}
-bnf_sampler = "0.1.2"
+bit-set = "0.5.3"
+bnf_sampler = "0.2.4"
 bson = "2.7.0"
 clap = {version = "4.4.1", features = ["derive"]}
 dashmap = {version = "5.5.3", features = ["rayon", "serde"]}
@@ -23,8 +24,10 @@ maplit = "1.0.2"
 memmap2 = "0.7.1"
 ndarray = { version = "0.15.6", features = ["serde", "rayon"] }
 num_cpus = "1.16.0"
+qp-trie = "0.8.1"
 rayon = "1.7.0"
 rhai = {version = "1.15.1", features = ["serde", "serde_json"]}
+rustc-hash = "1.1.0"
 serde = "1.0.188"
 serde_json = "1.0.105"
 tokio = {version = "1.32.0", features = ["full"]}
