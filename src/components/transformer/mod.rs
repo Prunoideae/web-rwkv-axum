@@ -8,9 +8,10 @@ use std::collections::HashMap;
 
 use super::InferenceInterruption;
 
+mod bnf_constraint;
+mod disable_tokens;
 mod global_penalty;
 pub mod types;
-mod bnf_constraint;
 
 #[derive(Debug, Deserialize)]
 struct TransformerJson {
@@ -30,7 +31,8 @@ impl Transformers {
                 HashMap<&'static str, fn(AppState, Option<Value>) -> Result<Box<dyn Transformer>>>,
                     {
                         "global_penalty" => global_penalty::initialize_global,
-                        "BNF"=> bnf_constraint::BNFConstraint::initialize
+                        "disable_token" => disable_tokens::initialize_disable,
+                        "bnf_grammar" => bnf_constraint::BNFConstraint::initialize
                     }
             },
             map: DashMap::with_capacity(128),

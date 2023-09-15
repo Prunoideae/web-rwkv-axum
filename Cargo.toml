@@ -22,7 +22,7 @@ itertools = "0.11.0"
 lazy_static = "1.4.0"
 maplit = "1.0.2"
 memmap2 = "0.7.1"
-ndarray = { version = "0.15.6", features = ["serde", "rayon"] }
+ndarray = { version = "0.15.6", features = ["serde", "rayon", "blas"] }
 num_cpus = "1.16.0"
 qp-trie = "0.8.1"
 rayon = "1.7.0"
