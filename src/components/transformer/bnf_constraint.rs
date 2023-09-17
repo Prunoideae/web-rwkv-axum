@@ -111,7 +111,6 @@ impl Transformer for BNFConstraint {
     }
 
     fn transform(&self, logits: Vec<f32>) -> Vec<f32> {
-        println!("{}", logits.len());
         let mut logits = logits;
         for (i, logit) in logits.iter_mut().enumerate() {
             if !self.current_token_ids.contains(i) {

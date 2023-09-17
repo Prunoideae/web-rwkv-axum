@@ -62,7 +62,7 @@ commands = [
             "data": {
                 "type_id": "bnf_grammar",
                 "params": {
-                    "grammar": "<base>::='1'|'2'|'3'|'4'\n<sequence>::=<base>|<base><sequence>\n<start>::=<sequence>'5'",
+                    "grammar": "<base>::='1'|'2'|'3'|'4'\n<sequence>::=<base>|<base><sequence>\n<start>::=' '<sequence>",
                     "stack_arena_capacity": 1024 * 1024,
                     "grammar_stack_arena_capacity": 1024,
                     "start_nonterminal": "start",
@@ -90,7 +90,7 @@ commands = [
             "data": {
                 "type_id": "lengthed",
                 "params": {
-                    "length": 128,
+                    "length": 32,
                 },
             },
         },
@@ -104,7 +104,10 @@ commands = [
             "sampler": sampler_name,
             "terminal": terminal_name,
             "update_prompt": False,
-            "reset_on_exhaustion": True,
+            "reset_on_exhaustion": {
+                "transformers": [[True, True, True]],
+                "sampler": True,
+            },
         },
     ],
 ]
@@ -118,11 +121,9 @@ async def main():
     async with connect(uri) as ws:
         for command, payload in commands:
             result = await invoke_command(ws, command, payload)
+            print(result, flush=True)
             if "error" not in result:
                 result = result["result"]
-                print(result, flush=True)
-            else:
-                print(result)
 
         elapsed = 0
         inferred = 0
@@ -136,7 +137,10 @@ async def main():
                 "sampler": sampler_name,
                 "terminal": terminal_name,
                 "update_prompt": False,
-                "reset_on_exhaustion": True,
+                "reset_on_exhaustion": {
+                    "transformers": [[True, True, True]],
+                    "sampler": True,
+                },
             }
             data["tokens"] = [[result]]
             try:
