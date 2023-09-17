@@ -7,12 +7,11 @@ use serde_json::Value;
 
 /// Typical sampler for logits
 #[derive(Debug, Clone, Deserialize)]
-pub struct TypicalSampler {
+pub struct TestSampler {
     top_p: f32,
-    temp: f32,
 }
 
-impl Sampler for TypicalSampler {
+impl Sampler for TestSampler {
     fn sample(&self, probs: Vec<Vec<f32>>) -> u16 {
         let probs = &probs[0];
         let sorted = probs
@@ -47,15 +46,12 @@ impl Sampler for TypicalSampler {
     }
 
     fn clone(&self) -> Box<dyn Sampler> {
-        Box::new(Self {
-            top_p: self.top_p,
-            temp: self.temp,
-        })
+        Box::new(Self { top_p: self.top_p })
     }
 }
 
-pub fn initialize_typical(_state: AppState, data: Option<Value>) -> Result<Box<dyn Sampler>> {
-    Ok(Box::new(serde_json::from_value::<TypicalSampler>(
+pub fn initialize_test(_state: AppState, data: Option<Value>) -> Result<Box<dyn Sampler>> {
+    Ok(Box::new(serde_json::from_value::<TestSampler>(
         data.ok_or(Error::msg("Field must present to specify top_p and temp!"))?,
     )?))
 }

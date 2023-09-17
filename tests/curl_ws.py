@@ -42,7 +42,7 @@ commands = [
             },
         },
     ],
-    [        
+    [
         "create_transformer",
         {
             "id": transformer_name,
@@ -58,15 +58,27 @@ commands = [
     [
         "create_transformer",
         {
-            "id": transformer_name+"0",
+            "id": transformer_name + "0",
             "data": {
-                "type_id": "BNF",
+                "type_id": "bnf_grammar",
                 "params": {
                     "grammar": "<base>::='1'|'2'|'3'|'4'\n<sequence>::=<base>|<base><sequence>\n<start>::=<sequence>'5'",
-                    "stack_arena_capacity": 1024*1024,
+                    "stack_arena_capacity": 1024 * 1024,
                     "grammar_stack_arena_capacity": 1024,
-                    "start_nonterminal":"start",
-                    "stack_to_bytes_cache_enabled":True
+                    "start_nonterminal": "start",
+                    "stack_to_bytes_cache_enabled": True,
+                },
+            },
+        },
+    ],
+    [
+        "create_transformer",
+        {
+            "id": transformer_name + "1",
+            "data": {
+                "type_id": "disable_token",
+                "params": {
+                    "tokens": [0],
                 },
             },
         },
@@ -88,10 +100,10 @@ commands = [
         {
             "tokens": [prompt],
             "states": [state_name],
-            "transformers": [[transformer_name,transformer_name+"0"]],
+            "transformers": [[transformer_name + "1", transformer_name, transformer_name + "0"]],
             "sampler": sampler_name,
             "terminal": terminal_name,
-            "update_prompt": True,
+            "update_prompt": False,
             "reset_on_exhaustion": True,
         },
     ],
@@ -120,15 +132,16 @@ async def main():
             data = {
                 "tokens": None,
                 "states": [state_name],
-                "transformers": [[transformer_name, transformer_name+"0"]],
+                "transformers": [[transformer_name + "1", transformer_name, transformer_name + "0"]],
                 "sampler": sampler_name,
                 "terminal": terminal_name,
-                "update_prompt": True,
+                "update_prompt": False,
                 "reset_on_exhaustion": True,
             }
             data["tokens"] = [[result]]
             try:
                 result = await invoke_command(ws, "infer", data)
+                print(result)
             except asyncio.CancelledError:
                 print(result)
                 return
@@ -137,6 +150,7 @@ async def main():
             output += result["value"]
             inferred += result["inferred_tokens"]
             result = result["last_token"]
+            break
 
         await invoke_command(ws, "delete_state", state_name)
         await invoke_command(ws, "delete_sampler", sampler_name)

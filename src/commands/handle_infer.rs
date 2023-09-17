@@ -105,6 +105,7 @@ struct InferResponse {
     value: String,
     last_token: u16,
     inferred_tokens: usize,
+    end_reason: &'static str,
 }
 
 pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
@@ -150,7 +151,7 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
             return Err(Error::msg("Empty token list!"));
         }
 
-        let (result, last_token, inferred_tokens) = {
+        let (result, last_token, inferred_tokens, terminate_reason) = {
             let mut out_tokens = Vec::with_capacity(4);
             let mut inferred_tokens: usize = 1usize;
             let mut result = String::new();
@@ -201,7 +202,7 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
                         .terminals
                         .terminate(&terminal, &result, inferred_tokens)?
                 {
-                    break (result, last_token, inferred_tokens);
+                    break (result, last_token, inferred_tokens, "by_terminal");
                 }
 
                 // Not ready, infer next one using last token
@@ -212,7 +213,8 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
                         &transformers,
                         vec![vec![last_token]; states.len()],
                         &sampler,
-                        update_prompt,
+                        // In autoregressive generation must follow the rule
+                        true,
                         reset_on_exhaustion,
                     )
                     .await
@@ -220,7 +222,7 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
                         Ok(token) => token,
                         // Exhausted, so stop infer.
                         Err(InferenceInterruption::Exhaustion) => {
-                            break (result, last_token, inferred_tokens);
+                            break (result, last_token, inferred_tokens, "by_exhaustion");
                         }
                         // A sampling/transformation error occurred, inference
                         // is terminated
@@ -235,6 +237,7 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
             value: result,
             last_token,
             inferred_tokens,
+            end_reason: terminate_reason,
         })?)
     } else {
         Err(Error::msg(

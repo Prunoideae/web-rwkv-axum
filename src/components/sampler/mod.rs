@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use super::InferenceInterruption;
 
 pub mod types;
-pub mod typical;
+pub mod test;
 
 #[derive(Debug, Deserialize)]
 struct SamplerJson {
@@ -29,7 +29,7 @@ impl Samplers {
             registry: hashmap_ex! {
                 HashMap<&'static str, fn(AppState, Option<Value>) -> Result<Box<dyn Sampler>>>,
                     {
-                        "typical" => typical::initialize_typical
+                        "typical" => test::initialize_test
                     }
             },
             map: DashMap::with_capacity(128),
