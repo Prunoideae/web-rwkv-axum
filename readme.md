@@ -9,7 +9,7 @@ Still under heavy development, PRs and suggestions are welcome.
 ## Testing
 
 - Run by `cargo run --release ./config.toml`. Wait for `Model is loaded!` to popup.
-- Run the `/tests/curl_ws.py` in the `tests` folder.
+- Run the `/tests/curl_ws.py "{any prompt input}"` in the `tests` folder.
 
 ## Protocol
 

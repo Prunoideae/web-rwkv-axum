@@ -62,7 +62,7 @@ commands = [
             "data": {
                 "type_id": "bnf_grammar",
                 "params": {
-                    "grammar": "<base>::='1'|'2'|'3'|'4'\n<sequence>::=<base>|<base><sequence>\n<start>::=' '<sequence>",
+                    "grammar": "<base>::='1'|'2'|'3'|'4'|'6'|'7'|'8'\n<sequence>::=<base>|<base><sequence>\n<start>::=' '<sequence>'9'",
                     "stack_arena_capacity": 1024 * 1024,
                     "grammar_stack_arena_capacity": 1024,
                     "start_nonterminal": "start",
@@ -90,7 +90,7 @@ commands = [
             "data": {
                 "type_id": "lengthed",
                 "params": {
-                    "length": 32,
+                    "length": 8,
                 },
             },
         },
@@ -136,7 +136,7 @@ async def main():
                 "transformers": [[transformer_name + "1", transformer_name, transformer_name + "0"]],
                 "sampler": sampler_name,
                 "terminal": terminal_name,
-                "update_prompt": False,
+                "update_prompt": True,
                 "reset_on_exhaustion": {
                     "transformers": [[True, True, True]],
                     "sampler": True,
