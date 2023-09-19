@@ -36,8 +36,8 @@ commands = [
             "data": {
                 "type_id": "typical",
                 "params": {
-                    "temp": 2.5,
-                    "top_p": 0.6,
+                    "temp": 1,
+                    "tau": 0.8,
                 },
             },
         },
@@ -62,7 +62,7 @@ commands = [
             "data": {
                 "type_id": "bnf_grammar",
                 "params": {
-                    "grammar": "<base>::='1'|'2'|'3'|'4'|'6'|'7'|'8'\n<sequence>::=<base>|<base><sequence>\n<start>::=' '<sequence>'9'",
+                    "grammar": "<sequence>::=<any!>|<any!><sequence>\n<start>::=<sequence>",
                     "stack_arena_capacity": 1024 * 1024,
                     "grammar_stack_arena_capacity": 1024,
                     "start_nonterminal": "start",
@@ -90,7 +90,7 @@ commands = [
             "data": {
                 "type_id": "lengthed",
                 "params": {
-                    "length": 8,
+                    "length": 16,
                 },
             },
         },

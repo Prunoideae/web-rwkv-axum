@@ -5,7 +5,7 @@ use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::Value;
 
-/// Typical sampler for logits
+/// Test sampler for logits
 #[derive(Debug, Clone, Deserialize)]
 pub struct TestSampler {
     top_p: f32,

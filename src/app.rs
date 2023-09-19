@@ -24,7 +24,6 @@ pub struct InnerState {
     pub model: Arc<Model<'static>>,
     pub batch_request: BatchRequest,
 }
-
 #[derive(Clone)]
 /// Global state holder of the entire app.
 pub struct AppState(pub Arc<InnerState>);

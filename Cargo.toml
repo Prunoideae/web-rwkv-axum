@@ -24,7 +24,9 @@ maplit = "1.0.2"
 memmap2 = "0.7.1"
 ndarray = { version = "0.15.6", features = ["serde", "rayon", "blas"] }
 num_cpus = "1.16.0"
+ordered-float = "3.9.1"
 qp-trie = "0.8.1"
+rand = "0.8.5"
 rayon = "1.7.0"
 rhai = {version = "1.15.1", features = ["serde", "serde_json"]}
 rustc-hash = "1.1.0"
