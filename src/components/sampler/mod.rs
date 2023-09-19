@@ -10,6 +10,8 @@ use super::InferenceInterruption;
 
 pub mod types;
 pub mod test;
+mod typical;
+mod utils;
 
 #[derive(Debug, Deserialize)]
 struct SamplerJson {
@@ -29,7 +31,8 @@ impl Samplers {
             registry: hashmap_ex! {
                 HashMap<&'static str, fn(AppState, Option<Value>) -> Result<Box<dyn Sampler>>>,
                     {
-                        "typical" => test::initialize_test
+                        "test" => test::initialize_test,
+                        "typical" => typical::TypicalSampler::initialize
                     }
             },
             map: DashMap::with_capacity(128),
