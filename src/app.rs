@@ -33,6 +33,7 @@ impl AppState {
     pub async fn new(config: &ModelConfig) -> Result<Self> {
         let context = config.model.create_context().await?;
         let model = Arc::new(config.model.load_model(&context).await?);
+        println!("Model is loaded.");
         let batch_request = BatchRequest::new();
 
         let softmax = Softmax::new(model.clone(), config.model.get_batch_size()).await;

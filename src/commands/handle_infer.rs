@@ -5,6 +5,8 @@ use serde_json::Value;
 
 use crate::{app::AppState, commands::helpers, components::InferenceInterruption};
 
+use super::helpers::ResetSetting;
+
 #[derive(Debug, Deserialize)]
 struct InferPayload {
     tokens: Vec<Value>,
@@ -13,7 +15,7 @@ struct InferPayload {
     sampler: String,
     terminal: String,
     update_prompt: bool,
-    reset_on_exhaustion: bool,
+    reset_on_exhaustion: Value,
 }
 
 fn transform_logits(
@@ -37,7 +39,7 @@ async fn infer_and_sample(
     tokens: Vec<Vec<u16>>,
     sampler: &String,
     update_prompts: bool,
-    reset_on_exhaustion: bool,
+    reset_on_exhaustion: Option<&ResetSetting>,
 ) -> Result<u16, InferenceInterruption> {
     if update_prompts {
         tokio::task::block_in_place(|| -> Result<(), InferenceInterruption> {
@@ -55,24 +57,40 @@ async fn infer_and_sample(
                 .zip(tokens.par_iter())
                 .map(|(t_ids, tokens)| {
                     for t_id in t_ids {
-                        let result = app_state.0.transformers.update_transformer(t_id, tokens);
-                        if let Err(InferenceInterruption::Exhaustion) = result {
-                            if reset_on_exhaustion {
-                                app_state.0.transformers.reset_transformer(t_id).unwrap();
-                            }
-                        }
-                        result?
+                        app_state.0.transformers.update_transformer(t_id, tokens)?;
                     }
                     Ok(())
                 })
                 .collect::<Result<Vec<()>, InferenceInterruption>>();
             let sampler_update = app_state.0.samplers.update_sampler(&sampler, &tokens);
-            if let Err(InferenceInterruption::Exhaustion) = sampler_update {
-                if reset_on_exhaustion {
-                    app_state.0.samplers.reset_sampler(&sampler).unwrap();
+
+            let result = transformer_update.and(sampler_update);
+            // If any interruption occurred, reset things used as it is terminated.
+            // Some transformer can be ignored.
+            if let Err(e) = &result {
+                if e.exhausted() {
+                    if let Some(ResetSetting {
+                        transformers: transformer_flags,
+                        sampler: sampler_flag,
+                    }) = reset_on_exhaustion
+                    {
+                        transformers
+                            .iter()
+                            .flatten()
+                            .zip(transformer_flags.iter())
+                            .par_bridge()
+                            .for_each(|(t_id, update)| {
+                                if *update {
+                                    app_state.0.transformers.reset_transformer(&t_id).unwrap()
+                                }
+                            });
+                        if *sampler_flag {
+                            app_state.0.samplers.reset_sampler(&sampler).unwrap();
+                        }
+                    }
                 }
             }
-            transformer_update.and(sampler_update)
+            result
         })?;
     }
 
@@ -119,6 +137,8 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
             update_prompt,
             reset_on_exhaustion,
         } = serde_json::from_value::<InferPayload>(data)?;
+
+        let reset_on_exhaustion = ResetSetting::from_value(&transformers, reset_on_exhaustion)?;
 
         if tokens.len() != states.len() || states.len() != transformers.len() {
             return Err(Error::msg(
@@ -169,7 +189,7 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
                     tokens,
                     &sampler,
                     update_prompt,
-                    false,
+                    None,
                 )
                 .await
                 .map_err(|e| match e {
@@ -215,7 +235,7 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
                         &sampler,
                         // In autoregressive generation must follow the rule
                         true,
-                        reset_on_exhaustion,
+                        Some(&reset_on_exhaustion),
                     )
                     .await
                     {

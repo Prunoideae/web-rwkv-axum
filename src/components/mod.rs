@@ -12,3 +12,12 @@ pub enum InferenceInterruption {
     Exhaustion,
     Error(Error),
 }
+
+impl InferenceInterruption {
+    pub fn exhausted(&self) -> bool {
+        match self {
+            InferenceInterruption::Exhaustion => true,
+            InferenceInterruption::Error(_) => false,
+        }
+    }
+}
