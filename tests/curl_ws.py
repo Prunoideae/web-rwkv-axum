@@ -34,10 +34,10 @@ commands = [
         {
             "id": sampler_name,
             "data": {
-                "type_id": "typical",
+                "type_id": "nucleus",
                 "params": {
                     "temp": 1,
-                    "tau": 0.8,
+                    "top_p": 0.3,
                 },
             },
         },

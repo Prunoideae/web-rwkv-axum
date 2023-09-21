@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use super::InferenceInterruption;
 
 pub mod types;
-pub mod test;
+pub mod nucleus;
 mod typical;
 mod utils;
 
@@ -31,7 +31,7 @@ impl Samplers {
             registry: hashmap_ex! {
                 HashMap<&'static str, fn(AppState, Option<Value>) -> Result<Box<dyn Sampler>>>,
                     {
-                        "test" => test::initialize_test,
+                        "nucleus" => nucleus::initialize,
                         "typical" => typical::TypicalSampler::initialize
                     }
             },
