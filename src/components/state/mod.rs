@@ -88,6 +88,8 @@ impl InferStates {
             return Err(Error::msg("Source state id doesn't exist!"));
         }
 
+        self.0.state_ids.insert(dst.to_string());
+
         if self.0.states.contains_key(src) {
             tokio::task::block_in_place(|| {
                 self.0.pool.sync(src)?;

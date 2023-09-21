@@ -59,7 +59,9 @@ impl AppState {
     }
 
     pub async fn update_state(&self, id: Vec<String>, tokens: Vec<Vec<u16>>) -> Result<()> {
+        let permit = self.0.batch_request.request(id.len());
         let _ = self.infer(id, tokens).await?;
+        drop(permit);
         Ok(())
     }
 
