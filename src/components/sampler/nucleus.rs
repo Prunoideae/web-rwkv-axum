@@ -20,8 +20,8 @@ pub struct NucleusSampler {
 }
 
 impl Sampler for NucleusSampler {
-    fn sample(&self, probs: Vec<Vec<f32>>) -> u16 {
-        let mut probs = Array::from_vec(probs[0].clone());
+    fn sample(&self, mut probs: Vec<Vec<f32>>) -> u16 {
+        let mut probs = Array::from_vec(probs.remove(0));
         let reversed_probs = -probs.clone();
         let sorted_ids = argsort(reversed_probs.view());
         sort_by_indices(probs.view_mut(), sorted_ids.view());
@@ -60,6 +60,13 @@ impl Sampler for NucleusSampler {
 
 pub fn initialize(_state: AppState, data: Option<Value>) -> Result<Box<dyn Sampler>> {
     Ok(Box::new(serde_json::from_value::<NucleusSampler>(
-        data.ok_or(Error::msg("Field must present to specify top_p and temp!"))?,
+        data.ok_or(Error::msg(
+            "
+        Invalid NucleusSampler data. Example format:{
+            top_p: f32,
+            temp: f32
+        }
+        ",
+        ))?,
     )?))
 }

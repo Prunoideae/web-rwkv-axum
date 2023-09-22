@@ -26,6 +26,8 @@ It might sounds scary, so a workflow diagram is here:
 
 An inference request can return even if you might have some more things to generate. For example, if the terminal is `infer only 32 tokens at max`, it will then only infer *32* tokens. However, you can always continue if you want to by sending another request.
 
-Almost every component in `web-rwkv-axum`, including `state`, `sampler`, `transformer`, etc., are stateful. This means that they will **not** lose their internal states even if the infer request is done.
+Almost every component in `web-rwkv-axum`, including `state`, `sampler`, `transformer`, etc., are stateful. This means that they will **not** lose their internal states even if the infer request is done, so they retain their status between different inference requests until manual reset, or pipeline resets sampler/transformers automatically when they're exhausted.
 
 So, if you use the returned `last_token` as the prompt with the same pipeline setup, the inference will continue until next terminal or exhaustion is met.
+
+Either to continue or stop is up to the client side, the client should understand if it should generate more tokens by sending out another inference requests with the same or different components.
