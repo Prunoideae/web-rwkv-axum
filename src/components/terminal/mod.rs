@@ -10,6 +10,7 @@ use self::types::Terminal;
 
 mod lengthed;
 mod types;
+mod until;
 
 #[derive(Debug, Deserialize)]
 struct TerminalJson {
@@ -28,7 +29,8 @@ impl Terminals {
             registry: hashmap_ex! {
                 HashMap<&str, fn(AppState, Option<Value>) -> Result<Box<dyn Terminal>>>,
                     {
-                        "lengthed" => lengthed::initialize_lenghted
+                        "lengthed" => lengthed::initialize_lenghted,
+                        "until" => until::intialize_until,
                     }
             },
             map: DashMap::with_capacity(128),

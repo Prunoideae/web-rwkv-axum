@@ -211,18 +211,17 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
                 {
                     result.push_str(partial.as_str());
                     inferred_tokens += out_tokens.len();
-                    out_tokens.clear()
-                }
+                    out_tokens.clear();
 
-                // out token must be empty when output, or it will be extremely tricky
-                // to hand over the out token.
-                if out_tokens.is_empty()
-                    && state
+                    // out token must be empty when output, or it will be extremely tricky
+                    // to hand over the out token.
+                    if state
                         .0
                         .terminals
                         .terminate(&terminal, &result, inferred_tokens)?
-                {
-                    break (result, last_token, inferred_tokens, "by_terminal");
+                    {
+                        break (result, last_token, inferred_tokens, "by_terminal");
+                    }
                 }
 
                 // Not ready, infer next one using last token

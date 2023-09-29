@@ -11,6 +11,7 @@ use super::InferenceInterruption;
 mod bnf_constraint;
 mod disable_tokens;
 mod global_penalty;
+mod sliding_penalty;
 pub mod types;
 
 #[derive(Debug, Deserialize)]
@@ -31,6 +32,7 @@ impl Transformers {
                 HashMap<&'static str, fn(AppState, Option<Value>) -> Result<Box<dyn Transformer>>>,
                     {
                         "global_penalty" => global_penalty::initialize_global,
+                        "sliding_penalty" => sliding_penalty::initialize_sliding,
                         "disable_token" => disable_tokens::initialize_disable,
                         "bnf_grammar" => bnf_constraint::BNFConstraint::initialize
                     }
