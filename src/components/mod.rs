@@ -1,5 +1,6 @@
 use anyhow::Error;
 
+pub mod model;
 pub mod infer;
 pub mod permit;
 pub mod sampler;

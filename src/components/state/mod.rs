@@ -8,9 +8,9 @@ use dashmap::{DashMap, DashSet};
 use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
 use std::sync::Arc;
 use tokio::sync::oneshot;
-use web_rwkv::{context::Context, model::Model};
+use web_rwkv::context::Context;
 
-use super::permit::BatchRequest;
+use super::{model::TypelessModel, permit::BatchRequest};
 
 mod pool;
 mod state;
@@ -22,7 +22,7 @@ impl InferStates {
     pub async fn new(
         config: &ModelConfig,
         context: Context,
-        model: Arc<Model<'static>>,
+        model: Arc<TypelessModel>,
         batch_lock: BatchRequest,
     ) -> Result<Self> {
         let pool = InferPool::new(
@@ -116,7 +116,11 @@ impl InferStates {
             .states
             .entry(state_id.to_string())
             .or_insert_with(|| {
-                InferState::new(state_id.to_string(), self.0.context.clone(), &self.0.model)
+                InferState::new(
+                    state_id.to_string(),
+                    self.0.context.clone(),
+                    self.0.model.clone(),
+                )
             })
             .clone()
     }

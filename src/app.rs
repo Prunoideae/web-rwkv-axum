@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use tokio::sync::{mpsc::Sender, oneshot};
-use web_rwkv::{context::Context, model::Model, tokenizer::Tokenizer};
+use web_rwkv::{context::Context, tokenizer::Tokenizer};
 
 use crate::{
     components::{
-        permit::BatchRequest, sampler::Samplers, softmax::Softmax, state::InferStates,
-        terminal::Terminals, transformer::Transformers,
+        model::TypelessModel, permit::BatchRequest, sampler::Samplers, softmax::Softmax,
+        state::InferStates, terminal::Terminals, transformer::Transformers,
     },
     config::ModelConfig,
 };
@@ -21,7 +21,7 @@ pub struct InnerState {
     softmax_queue: Sender<Vec<(Vec<f32>, oneshot::Sender<Vec<f32>>)>>,
     pub tokenizer: Arc<Tokenizer>,
     pub context: Context,
-    pub model: Arc<Model<'static>>,
+    pub model: Arc<TypelessModel>,
     pub batch_request: BatchRequest,
 }
 #[derive(Clone)]

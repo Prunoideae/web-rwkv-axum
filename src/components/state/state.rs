@@ -3,42 +3,40 @@ use std::sync::Arc;
 use anyhow::Result;
 use dashmap::{DashMap, DashSet};
 use tokio::sync::mpsc;
-use web_rwkv::{
-    context::Context,
-    model::{Model, ModelInfo, ModelState},
-};
+use web_rwkv::context::Context;
+
+use crate::components::model::{TypelessModel, TypelessModelState};
 
 use super::pool::{InferPool, InferRequest};
 
 struct InnerState {
     id: String,
-    state: ModelState,
+    state: TypelessModelState,
     context: Context,
-    model_info: ModelInfo,
+    model: Arc<TypelessModel>,
 }
 
 #[derive(Clone)]
 pub struct InferState(Arc<InnerState>);
 
 impl InferState {
-    pub fn new(id: String, context: Context, model: &Model<'static>) -> Self {
-        let info = model.info().clone();
-        let state = ModelState::new(&context, &info, 1);
+    pub fn new(id: String, context: Context, model: Arc<TypelessModel>) -> Self {
+        let state = TypelessModelState::new(&context, &model, 1);
         Self(Arc::new(InnerState {
             id,
             state,
             context,
-            model_info: info,
+            model,
         }))
     }
 
     #[inline(always)]
-    pub fn load_to(&self, pool: &ModelState, to: usize) -> Result<()> {
+    pub fn load_to(&self, pool: &TypelessModelState, to: usize) -> Result<()> {
         Ok(self.0.state.blit_batch(pool, 0, to)?)
     }
 
     #[inline(always)]
-    pub fn back_from(&self, pool: &ModelState, from: usize) -> Result<()> {
+    pub fn back_from(&self, pool: &TypelessModelState, from: usize) -> Result<()> {
         Ok(pool.blit_batch(&self.0.state, from, 0)?)
     }
 
@@ -48,13 +46,13 @@ impl InferState {
     }
 
     pub fn clone_new(&self, id: String) -> Result<Self> {
-        let new_state = ModelState::new(&self.0.context, &self.0.model_info, 1);
+        let new_state = TypelessModelState::new(&self.0.context, &self.0.model, 1);
         self.load_to(&new_state, 0)?;
         Ok(Self(Arc::new(InnerState {
             id,
             state: new_state,
             context: self.0.context.clone(),
-            model_info: self.0.model_info.clone(),
+            model: self.0.model.clone(),
         })))
     }
 }
@@ -68,7 +66,7 @@ impl PartialEq for InferState {
 
 pub struct InnerStates {
     pub context: Context,
-    pub model: Arc<Model<'static>>,
+    pub model: Arc<TypelessModel>,
     pub pool: InferPool,
     pub state_ids: DashSet<String>,
     pub states: DashMap<String, InferState>,

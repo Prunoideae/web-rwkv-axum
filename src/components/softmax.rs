@@ -5,16 +5,17 @@ use tokio::{
     sync::{mpsc, oneshot},
     task::JoinHandle,
 };
-use web_rwkv::model::Model;
+
+use super::model::TypelessModel;
 
 #[derive(Clone)]
 pub struct Softmax {
-    model: Arc<Model<'static>>,
+    model: Arc<TypelessModel>,
     max_batch_size: usize,
 }
 
 impl Softmax {
-    pub async fn new(model: Arc<Model<'static>>, max_batch_size: usize) -> Self {
+    pub async fn new(model: Arc<TypelessModel>, max_batch_size: usize) -> Self {
         Self {
             model,
             max_batch_size,

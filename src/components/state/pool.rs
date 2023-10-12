@@ -3,12 +3,12 @@ use std::sync::{Arc, RwLock};
 use anyhow::{Error, Result};
 use itertools::Itertools;
 use tokio::sync::{mpsc, oneshot};
-use web_rwkv::{
-    context::Context,
-    model::{Model, ModelState},
-};
+use web_rwkv::context::Context;
 
-use crate::components::permit::BatchRequest;
+use crate::components::{
+    model::{TypelessModelState, TypelessModel},
+    permit::BatchRequest,
+};
 
 use super::state::InferState;
 
@@ -37,18 +37,18 @@ struct Slots {
     token_slots: Vec<Vec<u16>>,
     batch_slots: BatchSlots,
     callback_slots: Vec<Option<oneshot::Sender<Vec<f32>>>>,
-    pool: Arc<ModelState>,
+    pool: Arc<TypelessModelState>,
 }
 
 struct InnerPool {
     max_concurrent: usize,
     batch_size: usize,
     batch_lock: BatchRequest,
-    pool: Arc<ModelState>,
+    pool: Arc<TypelessModelState>,
     batch_slots: BatchSlots,
     #[allow(dead_code)] // probably one day we will use it
     context: Context,
-    model: Arc<Model<'static>>,
+    model: Arc<TypelessModel>,
 }
 
 #[derive(Clone)]
@@ -57,7 +57,7 @@ pub struct InferPool(Arc<InnerPool>);
 impl Slots {
     pub fn new(
         batch_slots: BatchSlots,
-        pool: Arc<ModelState>,
+        pool: Arc<TypelessModelState>,
         lock: BatchRequest,
         max_concurrent: usize,
     ) -> Self {
@@ -150,17 +150,17 @@ impl Slots {
         }
     }
 
-    fn infer(&mut self, model: &Model<'static>) {
+    fn infer(&mut self, model: &TypelessModel) {
         let logits = loop {
             let logits_internal = model.run(&mut self.token_slots, &self.pool).unwrap();
-            if logits_internal.iter().any(|l| !l.is_empty()) {
+            if logits_internal.iter().any(|l| l.is_some()) {
                 break logits_internal;
             }
         };
 
         for (index, logits) in logits.into_iter().enumerate() {
-            if !logits.is_empty() {
-                self.finish(index, logits)
+            if logits.is_some() {
+                self.finish(index, logits.unwrap())
             }
         }
     }
@@ -182,7 +182,7 @@ impl Slots {
 impl InferPool {
     pub fn new(
         context: Context,
-        model: Arc<Model<'static>>,
+        model: Arc<TypelessModel>,
         max_concurrent: usize,
         batch_size: usize,
         batch_lock: BatchRequest,
@@ -192,7 +192,7 @@ impl InferPool {
             max_concurrent,
             batch_lock,
             batch_size,
-            pool: Arc::new(ModelState::new(&context, model.info(), batch_size)),
+            pool: Arc::new(TypelessModelState::new(&context, &model, batch_size)),
             context,
             model,
             batch_slots: slots,

@@ -10,10 +10,17 @@ use tokio::{
 use serde::Deserialize;
 use web_rwkv::{
     context::{Context, ContextBuilder, Instance},
-    model::{LayerFlags, Model, ModelBuilder, Quantization},
+    model::{
+        loader::Loader,
+        LayerFlags, ModelBuilder,
+        ModelVersion::{V4, V5},
+        Quantization,
+    },
     tokenizer::Tokenizer,
     wgpu::Adapter,
 };
+
+use crate::components::model::TypelessModel;
 
 mod props {
     use serde::Deserialize;
@@ -110,7 +117,7 @@ impl ModelSpec {
         Ok(context.build().await?)
     }
 
-    pub async fn load_model(&self, context: &Context) -> Result<Model<'static>> {
+    pub async fn load_model(&self, context: &Context) -> Result<TypelessModel> {
         let file = File::open(&self.path).await?;
         let map = unsafe { Mmap::map(&file)? };
         let quant = self
@@ -118,11 +125,22 @@ impl ModelSpec {
             .map(|bits| Quantization::Int8(LayerFlags::from_bits_retain(bits)))
             .unwrap_or_default();
 
-        Ok(ModelBuilder::new(context, &map)
-            .with_token_chunk_size(self.get_chunk_size())
-            .with_head_chunk_size(8192)
-            .with_quant(quant)
-            .build()?)
+        Ok(match Loader::info(&map)?.version {
+            V4 => TypelessModel::V4(
+                ModelBuilder::new(context, &map)
+                    .with_token_chunk_size(self.get_chunk_size())
+                    .with_head_chunk_size(8192)
+                    .with_quant(quant)
+                    .build()?,
+            ),
+            V5 => TypelessModel::V5(
+                ModelBuilder::new(context, &map)
+                    .with_token_chunk_size(self.get_chunk_size())
+                    .with_head_chunk_size(8192)
+                    .with_quant(quant)
+                    .build()?,
+            ),
+        })
     }
 }
 
