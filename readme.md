@@ -10,6 +10,9 @@ Still under heavy development, PRs and suggestions are welcome.
 
 - Run by `cargo run --release ./config.toml`. Wait for `Model is loaded!` to popup.
 - Run the `/tests/curl_ws.py "{any prompt input}"` in the `tests` folder.
+- Or, with now-implemented (but not published yet) Python API:
+  - Build and install the package by running `python setup.py build && python setup.py install` in `wra-py`
+  - Run the `tests/test_pipeline.py` and check the code.
 
 ## Protocol
 
