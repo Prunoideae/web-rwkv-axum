@@ -2,6 +2,8 @@ from random import randint
 from typing import TYPE_CHECKING
 from dataclasses import dataclass
 
+from ..helper import get_random
+
 if TYPE_CHECKING:
     from ..api import Session
 
@@ -34,20 +36,14 @@ class States:
         self._session = session
         self._states = set()
 
-    def get_random(self) -> str:
-        rand = str(randint(0, 2**31))
-        while rand in self._states:
-            rand = str(randint(0, 2**31))
-        return rand
-
     async def create_state(self, state_id: str = None) -> State:
         if state_id is None:
-            state_id = self.get_random()
-        if (await self._session.call("create_state", state_id)).success():
+            state_id = get_random(self._states)
+        if (resp := await self._session.call("create_state", state_id)).success():
             self._states.add(state_id)
             return State(state_id, self)
         else:
-            raise RuntimeError("Duplicated state id!")
+            raise RuntimeError(resp.result)
 
     async def delete_state(self, state: State):
         if not (await self._session.call("delete_state", state.state_id)).success():
@@ -56,14 +52,17 @@ class States:
             self._states.remove(state.state_id)
 
     async def copy_state(self, src: State, dst_id: str = None) -> State:
-        if src.state_id not in self._states:
+        if not src.valid:
             raise RuntimeError("Source state id does not exist!")
 
         if dst_id is None:
-            dst_id = self.get_random()
+            dst_id = get_random(self._states)
 
-        if (await self._session.call("copy_state", {"source": src.state_id, "destination": dst_id})).success():
+        if (resp := await self._session.call("copy_state", {"source": src.state_id, "destination": dst_id})).success():
+            self._states.add(dst_id)
             return State(dst_id, self)
+        else:
+            raise RuntimeError(resp.result)
 
     async def update_state(self, states: list[State], tokens: list[str | list[int | str]]):
         state_ids = []

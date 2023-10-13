@@ -4,8 +4,11 @@ from types import TracebackType
 from typing import Any, Optional, Type, TypeVar
 from .model import Response
 from .components.states import States
+from .components.samplers import Samplers
+from .components.terminals import Terminals
+from .components.transformers import Transformers
+from .components.infer import Infers
 from websockets.client import connect, WebSocketClientProtocol
-from websockets.exceptions import ConnectionClosedOK, ConnectionClosedError
 from random import randint
 
 T = TypeVar("T")
@@ -27,6 +30,10 @@ class Session:
 
         # APIs
         self.states = States(self)
+        self.transformers = Transformers(self)
+        self.samplers = Samplers(self)
+        self.terminals = Terminals(self)
+        self.infer = Infers(self)
 
     async def connect(self) -> "Session":
         if self._ws is not None:

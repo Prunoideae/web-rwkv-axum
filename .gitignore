@@ -6,6 +6,6 @@ perf.data
 perf.data.old
 
 # Python things
-/web-rwkv-axum-py/web_rwkv_axum.egg-info
-/web-rwkv-axum-py/build
-/web-rwkv-axum-py/dist
+/wra-py/web_rwkv_axum.egg-info
+/wra-py/build
+/wra-py/dist
