@@ -24,6 +24,7 @@ class InferResult:
     ms_elapsed: int | None
     last_token: int
     result: str
+    end_reason: str
     token_count: int
 
     async def continue_(
@@ -47,6 +48,7 @@ class InferResult:
         )
         self.ms_elapsed = resp.ms_elapsed
         self.last_token = resp.last_token
+        self.end_reason = resp.end_reason
         self.result = resp.result
         self.token_count = resp.token_count
         return self
@@ -91,6 +93,7 @@ class InferPipeline:
                 ms_elapsed=resp.duration_ms,
                 last_token=resp.result["last_token"],
                 result=resp.result["value"],
+                end_reason=resp.result["end_reason"],
                 token_count=resp.result["inferred_tokens"],
             )
         else:
