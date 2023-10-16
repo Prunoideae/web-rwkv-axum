@@ -11,3 +11,14 @@ class Lengthed(TerminalBuilder):
 
     def payload(self) -> Any:
         return {"length": self.length}
+
+
+class Until(TerminalBuilder):
+    def __init__(self, until: str) -> None:
+        self.until = until
+
+    def type_id(self) -> str:
+        return "until"
+
+    def payload(self) -> Any:
+        return {"until": self.until}
