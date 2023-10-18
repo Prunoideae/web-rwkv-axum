@@ -28,7 +28,7 @@ class Terminal:
     def valid(self) -> bool:
         return self.terminal_id in self._terminals._terminals
 
-    async def copy(self, dst_id: str) -> "Terminal":
+    async def copy(self, dst_id: str = None) -> "Terminal":
         return await self._terminals.copy_terminal(self, dst_id)
 
     async def update(self, tokens: int | str | list[int | str]):

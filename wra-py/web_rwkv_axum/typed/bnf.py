@@ -35,6 +35,7 @@ class RuleSet:
 
     def literal(self, literal) -> str:
         sanitized = str(literal)
+        sanitized = sanitized.replace("\n", "\\n").replace("\t", "\\t").replace("\\", "\\\\").replace("\r", "\\r")
         return f'"{sanitized}"' if '"' not in sanitized else f"'{sanitized}'"
 
     def union(self, *elements: str | Rule) -> str:
@@ -65,7 +66,7 @@ class RuleSet:
         <rule>::=<base>|<optional><base>
         ```
         """
-        return self.union(base, self.join(optional, base))
+        return self.union(self.join(optional, base), base)
 
     def except_(self, rule: str | Rule):
         return f"<except!([{rule.rule_id}])>" if isinstance(rule, Rule) else f"<except!({rule})>"
@@ -79,7 +80,7 @@ class RuleSet:
 
         A recursive rule is:
         ```text
-        <this>::=<this>|<this><element>
+        <this>::=<element>|<element><this>
         ```
         """
         this = self.define(None)

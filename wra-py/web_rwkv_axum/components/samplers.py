@@ -28,7 +28,7 @@ class Sampler:
     def valid(self) -> bool:
         return self.sampler_id in self._samplers._samplers
 
-    async def copy(self, dst_id: str) -> "Sampler":
+    async def copy(self, dst_id: str = None) -> "Sampler":
         return await self._samplers.copy_sampler(self, dst_id)
 
     async def update(self, tokens: int | str | list[int | str]):

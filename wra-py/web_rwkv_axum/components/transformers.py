@@ -29,7 +29,7 @@ class Transformer:
     def valid(self) -> bool:
         return self.transformer_id in self._transformers._transformers
 
-    async def copy(self, dst_id: str) -> "Transformer":
+    async def copy(self, dst_id: str=None) -> "Transformer":
         return await self._transformers.copy_transformer(self, dst_id)
 
     async def update(self, tokens: int | str | list[int | str]):

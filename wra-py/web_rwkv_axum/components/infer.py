@@ -2,6 +2,7 @@ from .samplers import Sampler
 from .transformers import Transformer
 from .terminals import Terminal
 from .states import State
+import asyncio
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -53,14 +54,25 @@ class InferResult:
         self.token_count = resp.token_count
         return self
 
+    async def copy(self) -> "InferResult":
+        pipeline = await self.pipeline.copy()
+        return InferResult(
+            pipeline=pipeline,
+            ms_elapsed=self.ms_elapsed,
+            last_token=self.last_token,
+            result=self.result,
+            end_reason=self.end_reason,
+            token_count=self.token_count,
+        )
+
 
 @dataclass
 class InferPipeline:
     _session: "Session"
-    states: list[str]
-    transformers: list[list[str]]
-    sampler: str
-    terminal: str
+    states: list[State]
+    transformers: list[list[Transformer]]
+    sampler: Sampler
+    terminal: Terminal
 
     async def infer(
         self,
@@ -79,10 +91,10 @@ class InferPipeline:
                 "infer",
                 {
                     "tokens": tokens,
-                    "states": self.states,
-                    "transformers": self.transformers,
-                    "sampler": self.sampler,
-                    "terminal": self.terminal,
+                    "states": [s.state_id for s in self.states],
+                    "transformers": [[t.transformer_id for t in ts] for ts in self.transformers],
+                    "sampler": self.sampler.sampler_id,
+                    "terminal": self.terminal.terminal_id,
                     "reset_on_exhaustion": reset_on_exhaustion,
                     "update_prompt": update_prompt,
                 },
@@ -98,6 +110,16 @@ class InferPipeline:
             )
         else:
             raise RuntimeError(resp.result)
+
+    async def copy(self) -> "InferPipeline":
+        async def gather_list(ts: list[Any]) -> list[Any]:
+            return asyncio.gather(*[t.copy() for t in ts])
+
+        sampler, terminal, states, *transformers = await asyncio.gather(
+            *([self.sampler.copy(), self.terminal.copy(), gather_list(self.states)] + [gather_list(x) for x in self.transformers]),
+        )
+
+        return InferPipeline(self._session, states, transformers, sampler, terminal)
 
 
 class Infers:
@@ -122,8 +144,8 @@ class Infers:
 
         return InferPipeline(
             self._session,
-            states=[state.state_id for state in states],
-            transformers=[[t.transformer_id for t in ts] for ts in transformers],
-            sampler=sampler.sampler_id,
-            terminal=terminal.terminal_id,
+            states=states,
+            transformers=transformers,
+            sampler=sampler,
+            terminal=terminal,
         )

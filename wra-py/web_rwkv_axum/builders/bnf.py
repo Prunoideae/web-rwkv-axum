@@ -1,16 +1,15 @@
-from typing import Callable, TypeVar, final
-import inspect
-from ..typed.bnf import RuleSet
+from typing import Callable, TypeVar
+from ..typed.bnf import RuleSet, Rule
 
 T = TypeVar("T")
 
 
 class BNFFactory:
-    def compile(self, rules: RuleSet, clazz: type) -> tuple[str, dict[str, str]]:
+    def compile(self, rules: RuleSet, clazz: type) -> Rule:
         """
         Resolves and handles everything.
 
-        Returns a ruleset that represents a certain grammar.
+        Returns a rule that represents the class.
         """
 
     def deserialize(self, clazz: type[T], payload: str) -> T:
@@ -28,14 +27,17 @@ def bnf(factory: BNFFactory) -> Callable[[type[T]], type[T]]:
 
 
 def compile(clazz: type[T]) -> tuple[str, str]:
-    return getattr(clazz, "__bnf_factory").compile(RuleSet("__bnf"), clazz)
-
-
-def is_bnf(clazz: type[T]) -> bool:
-    return getattr(clazz, "__bnf_factory", None) is not None
+    ruleset = RuleSet("__bnf")
+    return get_bnf(clazz).compile(ruleset, clazz).rule_id, ruleset.declare()
 
 
 def deserialize(clazz: type[T], payload: str) -> T:
-    if not hasattr(clazz, "__bnf_parse"):
-        raise TypeError("Not a decorated type!")
-    return getattr(clazz, "__bnf_parse")(payload)
+    return get_bnf(clazz).deserialize(clazz, payload)
+
+
+def get_bnf(clazz: type[T]) -> BNFFactory:
+    return getattr(clazz, "__bnf_factory", None)
+
+
+def is_bnf(clazz: type[T]) -> bool:
+    return get_bnf(clazz) is not None

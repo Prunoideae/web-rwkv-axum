@@ -1,7 +1,5 @@
-from typing import Literal
-from web_rwkv_axum.builders.bnf_schema import JsonFactory
+from web_rwkv_axum.builders.schemas.json_schema import JsonFactory
 from web_rwkv_axum.builders import bnf
-from web_rwkv_axum.typed.bnf import RuleSet
 
 from dataclasses import dataclass
 
@@ -9,14 +7,28 @@ from dataclasses import dataclass
 @bnf.bnf(JsonFactory())
 @dataclass
 class Event:
-    dates: list[str]
-    place: Literal[1] | Literal[2] | Literal["42"]
-    sequence: tuple[str, Literal[1] | Literal[2], int]
+    @dataclass
+    class Author:
+        name: str
+        age: str
+
+    authors: list[Author]
+    time_epoch: int
 
 
-start, bnf_string = bnf.compile(Event)
-# event = bnf.deserialize(Event, """{"date":"2013-10-20","place":"home"}""")
+payload = {
+    "authors": [
+        {
+            "name": "Red",
+            "age": "sus",
+        }
+    ],
+    "time_epoch": 114514.1919810,
+}
 
-print(bnf_string)
+import json
 
-print("Class entry point:", start)
+event = bnf.deserialize(Event, json.dumps(payload))
+
+print(event.authors)
+print(event.time_epoch)
