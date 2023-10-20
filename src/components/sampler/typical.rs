@@ -27,13 +27,6 @@ impl TypicalSampler {
 }
 
 impl Sampler for TypicalSampler {
-    fn update(
-        &mut self,
-        _tokens: &Vec<Vec<u16>>,
-    ) -> anyhow::Result<(), crate::components::InferenceInterruption> {
-        Ok(())
-    }
-
     fn sample(&self, probs: Vec<Vec<f32>>) -> u16 {
         let probs = probs[0].clone();
         let mut probs = Array::from_vec(probs);
@@ -67,8 +60,6 @@ impl Sampler for TypicalSampler {
         };
         token_id
     }
-
-    fn clear(&mut self) {}
 
     fn clone(&self) -> Box<dyn Sampler> {
         Box::new(TypicalSampler {

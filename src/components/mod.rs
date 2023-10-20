@@ -8,6 +8,7 @@ pub mod softmax;
 pub mod state;
 pub mod terminal;
 pub mod transformer;
+pub mod normalizer;
 
 pub enum InferenceInterruption {
     Exhaustion,

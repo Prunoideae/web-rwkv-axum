@@ -5,6 +5,7 @@ use serde_json::Value;
 use crate::{app::AppState, register_handlers};
 
 mod handle_infer;
+mod handle_normalizers;
 mod handle_samplers;
 mod handle_states;
 mod handle_terminals;
@@ -48,6 +49,12 @@ impl TextCommand {
                 handle_terminals::copy_terminal,
                 handle_terminals::delete_terminal,
                 handle_terminals::reset_terminal,
+                //Normalizers
+                handle_normalizers::create_normalizer,
+                handle_normalizers::copy_normalizer,
+                handle_normalizers::update_normalizer,
+                handle_normalizers::delete_normalizer,
+                handle_normalizers::reset_normalizer,
                 //Infer
                 handle_infer::infer,
             ]

@@ -1,10 +1,7 @@
 use super::types::Sampler;
 use crate::{
     app::AppState,
-    components::{
-        sampler::utils::{argsort, sort_by_indices},
-        InferenceInterruption,
-    },
+    components::sampler::utils::{argsort, sort_by_indices},
 };
 use anyhow::{Error, Result};
 use ndarray::{s, Array};
@@ -42,12 +39,6 @@ impl Sampler for NucleusSampler {
             .unwrap()
             .sample(&mut rng)] as u16;
         token_id
-    }
-
-    fn clear(&mut self) {}
-
-    fn update(&mut self, _tokens: &Vec<Vec<u16>>) -> Result<(), InferenceInterruption> {
-        Ok(())
     }
 
     fn clone(&self) -> Box<dyn Sampler> {

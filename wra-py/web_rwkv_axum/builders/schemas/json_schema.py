@@ -4,6 +4,7 @@ from types import UnionType
 from dataclasses import is_dataclass
 from ...typed.bnf import RuleSet, Rule
 from ...typed.typetools import DeserdeReader, RuleReader
+from ...typed.json import Time, unwrap
 from ..blocks import json_blocks
 import json
 import hashlib
@@ -60,6 +61,9 @@ class JsonFactory(BNFFactory):
 
             return json_blocks.enum(reader.rules, *[reader.rules.literal(x if not isinstance(x, str) else json.dumps(x)) for x in args])
 
+        def handle_time(reader: RuleReader, obj: Time) -> Rule:
+            return json_blocks.time(reader.rules, obj.time)
+
         reader = RuleReader(
             rules=rules,
             handlers={
@@ -72,6 +76,9 @@ class JsonFactory(BNFFactory):
                 Union: handle_enum,
                 UnionType: handle_enum,
             },
+            value_handlers={
+                unwrap(Time): handle_time,
+            },
             default=handle_default,
         )
         return reader.handle(clazz)
@@ -83,7 +90,7 @@ class JsonFactory(BNFFactory):
 
         def handle_default(reader: DeserdeReader, value: Any, type_: type[T]) -> T:
             if not is_dataclass(type_):
-                raise TypeError("Must be a dataclass to perform deserialization.")
+                raise TypeError(f"{type_} must be a dataclass to perform deserialization.")
             if (factory := get_bnf(type_)) is not None and type_ is not clazz:
                 return factory.deserialize(type_, value)
             return type_(**reader.read_class(value, type_))

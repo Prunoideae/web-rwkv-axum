@@ -15,6 +15,7 @@ bnf_sampler = "0.3.1"
 bson = "2.7.0"
 clap = {version = "4.4.1", features = ["derive"]}
 dashmap = {version = "5.5.3", features = ["rayon", "serde"]}
+faer = { version = "0.13.5", features = ["ndarray"] }
 fastrand = "2.0.0"
 futures = "0.3.28"
 futures-util = "0.3.28"

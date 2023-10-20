@@ -1,3 +1,4 @@
+from dataclasses import dataclass, is_dataclass
 from typing import Callable, TypeVar
 from ..typed.bnf import RuleSet, Rule
 
@@ -20,6 +21,8 @@ class BNFFactory:
 
 def bnf(factory: BNFFactory) -> Callable[[type[T]], type[T]]:
     def bnf_wrapper(clazz: type[T]):
+        if not is_dataclass(clazz):
+            clazz = dataclass(clazz)
         setattr(clazz, "__bnf_factory", factory)
         return clazz
 

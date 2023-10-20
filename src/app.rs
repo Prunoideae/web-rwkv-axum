@@ -6,8 +6,8 @@ use web_rwkv::{context::Context, tokenizer::Tokenizer};
 
 use crate::{
     components::{
-        model::TypelessModel, permit::BatchRequest, sampler::Samplers, softmax::Softmax,
-        state::InferStates, terminal::Terminals, transformer::Transformers,
+        model::TypelessModel, normalizer::Normalizers, permit::BatchRequest, sampler::Samplers,
+        softmax::Softmax, state::InferStates, terminal::Terminals, transformer::Transformers,
     },
     config::ModelConfig,
 };
@@ -17,6 +17,7 @@ pub struct InnerState {
     pub samplers: Arc<Samplers>,
     pub transformers: Arc<Transformers>,
     pub terminals: Arc<Terminals>,
+    pub normalizers: Arc<Normalizers>,
     pub states: InferStates,
     softmax_queue: Sender<Vec<(Vec<f32>, oneshot::Sender<Vec<f32>>)>>,
     pub tokenizer: Arc<Tokenizer>,
@@ -43,6 +44,7 @@ impl AppState {
             samplers: Arc::new(Samplers::new()),
             transformers: Arc::new(Transformers::new()),
             terminals: Arc::new(Terminals::new()),
+            normalizers: Arc::new(Normalizers::new()),
             softmax_queue: softmax_sender,
             tokenizer: Arc::new(config.tokenizer.load_tokenizer().await?),
             context: context.clone(),

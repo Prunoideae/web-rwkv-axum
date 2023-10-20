@@ -25,6 +25,7 @@ class RuleSet:
         return self.rules[id]
 
     def define(self, rule: str, id: str = None) -> Rule:
+        rule = str(rule)
         if id is None:
             id = str(self.rule_counter)
             self.rule_counter += 1

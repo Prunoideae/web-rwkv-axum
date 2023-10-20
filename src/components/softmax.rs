@@ -97,4 +97,28 @@ impl Softmax {
         }
         results
     }
+
+    /// A blocking (sync) version of softmax.
+    /// This would block the current thread, so better use in blocking threads.
+    pub fn blocking_softmax(
+        logits: Vec<Vec<f32>>,
+        sender: mpsc::Sender<Vec<(Vec<f32>, oneshot::Sender<Vec<f32>>)>>,
+    ) -> Vec<Vec<f32>> {
+        let (receivers, requests): (
+            Vec<oneshot::Receiver<Vec<f32>>>,
+            Vec<(Vec<f32>, oneshot::Sender<Vec<f32>>)>,
+        ) = logits
+            .into_iter()
+            .map(|logits| {
+                let (sender, receiver) = oneshot::channel();
+                (receiver, (logits, sender))
+            })
+            .unzip();
+        sender.blocking_send(requests).unwrap();
+        let mut results = Vec::with_capacity(receivers.len());
+        for receiver in receivers {
+            results.push(receiver.blocking_recv().unwrap());
+        }
+        results
+    }
 }

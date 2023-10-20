@@ -16,8 +16,6 @@ impl Terminal for UntilTerminal {
         Ok(result.contains(&self.until))
     }
 
-    fn clear(&mut self) {}
-
     fn clone(&self) -> Box<dyn Terminal> {
         Box::new(UntilTerminal {
             until: self.until.clone(),

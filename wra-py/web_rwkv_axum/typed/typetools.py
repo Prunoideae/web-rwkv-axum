@@ -6,10 +6,8 @@ from inspect import getmembers, isroutine
 T = TypeVar("T")
 
 
-def is_shown(type: type, name: str):
-    if not is_dataclass(type):
-        return True
-    return (field := next(filter(lambda x: x.name == name, fields(type)), None)) is None or field.init
+def is_shown(fields: dict[str, Field], name: str):
+    return name not in fields or fields[name].init
 
 
 class RuleReader:
@@ -17,10 +15,12 @@ class RuleReader:
         self,
         rules: RuleSet,
         handlers: dict[type, Callable[["RuleReader", type], Rule]],
+        value_handlers: dict[type[T], Callable[["RuleReader", T], Rule]],
         default: Callable[["RuleReader", type], Rule],
     ) -> None:
         self.rules = rules
         self.handled = handlers
+        self.handled_override = value_handlers
         self.default = default
 
     def handle(self, type: type) -> Rule:
@@ -31,7 +31,7 @@ class RuleReader:
         else:
             return self.default(self, type)
 
-    def read_class(self, type: type) -> dict[str, Rule]:
+    def read_class(self, clazz: type) -> dict[str, Rule]:
         """
         Reads annotations and processes them into rules.
 
@@ -40,7 +40,16 @@ class RuleReader:
 
         Fields having `field(init=False)` from `dataclasses` are ignored.
         """
-        return {k: self.handle(v) for k, v in type.__annotations__.items() if is_shown(type, k)}
+        class_fields = {x.name: x for x in fields(clazz)} if is_dataclass(clazz) else {}
+        rules = {}
+        for k, v in clazz.__annotations__.items():
+            if is_shown(class_fields, k):
+                if (field := class_fields[k]) and "bnf_override" in field.metadata and (override_type := type(override := field.metadata["bnf_override"])) in self.handled_override:
+                    rules[k] = self.handled_override[override_type](self, override)
+                else:
+                    rules[k] = self.handle(v)
+
+        return rules
 
 
 class DeserdeReader:
@@ -64,4 +73,5 @@ class DeserdeReader:
 
         Fields having `field(init=False)` from `dataclasses` are ignored.
         """
-        return {k: self.handle(payload[k], v) for k, v in type.__annotations__.items() if is_shown(type, k)}
+        class_fields = {x.name: x for x in fields(type)} if is_dataclass(type) else {}
+        return {k: self.handle(payload[k], v) for k, v in type.__annotations__.items() if is_shown(class_fields, k)}

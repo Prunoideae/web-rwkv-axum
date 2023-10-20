@@ -48,34 +48,6 @@ def number(type_decl: RuleSet) -> Rule:
         return type_decl.get("__bjnu_decl")
 
 
-def number(type_decl: RuleSet) -> Rule:
-    if not type_decl.defined("__bjnu_decl"):
-        type_decl = type_decl.with_prefix("__bjnu")
-
-        exp_indicator = type_decl.define('"e"|"E"')
-        onenine = type_decl.define(type_decl.union(*[type_decl.literal(x) for x in range(1, 10)]))
-        sign = type_decl.define('"+"|"-"')
-
-        digit = type_decl.define(f'"0"|{onenine}')
-        digits = type_decl.repeat(digit)
-        integer = type_decl.define(f"{digit}|{onenine}{digits}")
-        signed = type_decl.define(f"{integer}|{sign}{integer}")
-        exp = type_decl.define(f"{exp_indicator}{signed}")
-        fraction = type_decl.define(f'"."{digits}')
-
-        return type_decl.define(
-            type_decl.union(
-                f"{signed}",
-                f"{signed}{exp}",
-                f"{signed}{fraction}",
-                f"{signed}{fraction}{exp}",
-            ),
-            id="decl",
-        )
-    else:
-        return type_decl.get("__bjnu_decl")
-
-
 def string(type_decl: RuleSet) -> Rule:
     if not type_decl.defined("__bjs_decl"):
         type_decl = type_decl.with_prefix("__bjs")
@@ -101,6 +73,19 @@ def string(type_decl: RuleSet) -> Rule:
         return type_decl.define(type_decl.union(f"'\"'{characters}'\"'", "'\"\"'"), id="decl")
     else:
         return type_decl.get("__bjs_decl")
+
+
+def time(type_decl: RuleSet, time_string: str) -> Rule:
+    prefix = hashstring(time_string)
+    if not type_decl.defined(f"__bjt_{prefix}_decl"):
+        if not type_decl.defined("__bjt_d"):
+            digit = type_decl.with_prefix(f"__bjt").define(type_decl.union(*(type_decl.literal(x) for x in range(10))), id="d")
+        else:
+            digit = type_decl.get("__bjt_d")
+        type_decl = type_decl.with_prefix(f"__bjt_{prefix}")
+        return type_decl.define(str(digit).join(type_decl.literal(x) if x else "" for x in json.dumps(time_string).split("%")), id="decl")
+    else:
+        return type_decl.get(f"__bjt_{prefix}_decl")
 
 
 def boolean(type_decl: RuleSet) -> Rule:

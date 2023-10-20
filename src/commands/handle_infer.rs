@@ -13,6 +13,7 @@ struct InferPayload {
     states: Vec<String>,
     transformers: Vec<Vec<String>>,
     sampler: String,
+    normalizer: Option<String>,
     terminal: String,
     update_prompt: bool,
     reset_on_exhaustion: Value,
@@ -38,6 +39,7 @@ async fn infer_and_sample(
     transformers: &Vec<Vec<String>>,
     tokens: Vec<Vec<u16>>,
     sampler: &String,
+    normalizer: &Option<String>,
     update_prompts: bool,
     reset_on_exhaustion: Option<&ResetSetting>,
 ) -> Result<u16, InferenceInterruption> {
@@ -63,15 +65,25 @@ async fn infer_and_sample(
                 })
                 .collect::<Result<Vec<()>, InferenceInterruption>>();
             let sampler_update = app_state.0.samplers.update_sampler(&sampler, &tokens);
-
-            let result = transformer_update.and(sampler_update);
+            let normalizer_update = if let Some(normalizer) = normalizer {
+                app_state
+                    .0
+                    .normalizers
+                    .update_normalizer(&normalizer, &tokens)
+            } else {
+                Ok(())
+            };
+            let result = transformer_update
+                .and(sampler_update)
+                .and(normalizer_update);
             // If any interruption occurred, reset things used as it is terminated.
-            // Some transformer can be ignored.
+            // Some transformer, sampler or normalizer can be ignored.
             if let Err(e) = &result {
                 if e.exhausted() {
                     if let Some(ResetSetting {
                         transformers: transformer_flags,
                         sampler: sampler_flag,
+                        normalizer: normalizer_flag,
                     }) = reset_on_exhaustion
                     {
                         transformers
@@ -86,6 +98,11 @@ async fn infer_and_sample(
                             });
                         if *sampler_flag {
                             app_state.0.samplers.reset_sampler(&sampler).unwrap();
+                        }
+                        if let Some(n_id) = normalizer {
+                            if *normalizer_flag {
+                                app_state.0.normalizers.reset_normalizer(&n_id).unwrap();
+                            }
                         }
                     }
                 }
@@ -113,7 +130,15 @@ async fn infer_and_sample(
     } else {
         logits
     };
-    let probs = app_state.softmax(logits).await;
+    let probs = if let Some(normalizer) = normalizer {
+        app_state
+            .0
+            .normalizers
+            .normalize_logits(normalizer, logits)
+            .map_err(|e| InferenceInterruption::Error(e))?
+    } else {
+        app_state.softmax(logits).await
+    };
     return tokio::task::block_in_place(move || app_state.0.samplers.sample_token(&sampler, probs))
         .map_err(|e| InferenceInterruption::Error(e));
 }
@@ -133,6 +158,7 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
             states,
             transformers,
             sampler,
+            normalizer,
             terminal,
             update_prompt,
             reset_on_exhaustion,
@@ -156,6 +182,12 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
             .any(|x| !state.0.transformers.has_transformer(x))
         {
             return Err(Error::msg("One or more transformer ids not exist!"));
+        }
+
+        if let Some(normalizer) = &normalizer {
+            if !state.0.normalizers.has_normalizer(&normalizer) {
+                return Err(Error::msg("Normalizer id doesn't exist!"));
+            }
         }
 
         if !state.0.samplers.has_sampler(&sampler) {
@@ -188,6 +220,7 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
                     &transformers,
                     tokens,
                     &sampler,
+                    &normalizer,
                     update_prompt,
                     None,
                 )
@@ -232,6 +265,7 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
                         &transformers,
                         vec![vec![last_token]; states.len()],
                         &sampler,
+                        &normalizer,
                         // In autoregressive generation must follow the rule
                         true,
                         Some(&reset_on_exhaustion),
