@@ -240,8 +240,6 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
                     .decode(&out_tokens.as_slice())
                     .map(|x| String::from_utf8(x))
                 {
-                    println!("{:?}", out_tokens);
-                    println!("{}", output);
                     // out token must be empty when output, or it will be extremely tricky
                     // to hand over the out token.
                     if state
