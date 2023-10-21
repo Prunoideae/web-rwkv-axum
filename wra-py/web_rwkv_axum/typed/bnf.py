@@ -8,7 +8,7 @@ class Rule:
 
 
 class RuleSet:
-    def __init__(self, rule_prefix: str) -> None:
+    def __init__(self, rule_prefix: str = "bnf") -> None:
         self.prefix = rule_prefix
         self.rules: dict[str, Rule] = {}
         self.rule_counter = 0
@@ -21,8 +21,8 @@ class RuleSet:
     def defined(self, id: str) -> bool:
         return id in self.rules
 
-    def get(self, id: str) -> Rule:
-        return self.rules[id]
+    def get(self, id: str) -> Rule | None:
+        return self.rules.get(id, None)
 
     def define(self, rule: str, id: str = None) -> Rule:
         rule = str(rule)
