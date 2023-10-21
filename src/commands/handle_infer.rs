@@ -204,9 +204,7 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
         }
 
         let (result, last_token, inferred_tokens, terminate_reason) = {
-            let mut out_tokens = Vec::with_capacity(4);
-            let mut inferred_tokens: usize = 1usize;
-            let mut result = String::new();
+            let mut out_tokens = Vec::with_capacity(64);
 
             // Locks state_size slots for the infer
             let _permits = state.0.batch_request.request(states.len());
@@ -236,24 +234,23 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
             let mut last_token = *out_tokens.last().unwrap();
 
             loop {
-                if let Ok(Ok(partial)) = state
+                if let Ok(Ok(output)) = state
                     .0
                     .tokenizer
                     .decode(&out_tokens.as_slice())
                     .map(|x| String::from_utf8(x))
                 {
-                    result.push_str(partial.as_str());
-                    inferred_tokens += out_tokens.len();
-                    out_tokens.clear();
-
+                    println!("{:?}", out_tokens);
+                    println!("{}", output);
                     // out token must be empty when output, or it will be extremely tricky
                     // to hand over the out token.
                     if state
                         .0
                         .terminals
-                        .terminate(&terminal, &result, inferred_tokens)?
+                        .terminate(&terminal, &output, out_tokens.len())?
+                        || last_token == 0
                     {
-                        break (result, last_token, inferred_tokens, "by_terminal");
+                        break (output, last_token, out_tokens.len(), "by_terminal");
                     }
                 }
 
@@ -275,7 +272,15 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
                         Ok(token) => token,
                         // Exhausted, so stop infer.
                         Err(InferenceInterruption::Exhaustion) => {
-                            break (result, last_token, inferred_tokens, "by_exhaustion");
+                            break (
+                                String::from_utf8_lossy(
+                                    &state.0.tokenizer.decode(&out_tokens.as_slice()).unwrap(),
+                                )
+                                .to_string(),
+                                last_token,
+                                out_tokens.len(),
+                                "by_exhaustion",
+                            );
                         }
                         // A sampling/transformation error occurred, inference
                         // is terminated

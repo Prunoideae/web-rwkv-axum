@@ -12,8 +12,8 @@ class BNFTransformer(TransformerBuilder):
             rules = rules.declare()
         self.start = start
         self.rules = rules
-        self.stack_arena_capacity = 1024
-        self.grammar_stack_areana_capacity = 1048576
+        self.stack_arena_capacity = 1048576
+        self.grammar_stack_areana_capacity = 1024
         self.bytes_cache = True
 
     def arena_capacity(self, cap: int):
