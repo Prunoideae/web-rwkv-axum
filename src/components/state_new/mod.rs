@@ -1,6 +1,5 @@
 use anyhow::{Error, Result};
 use dashmap::DashMap;
-use rayon::prelude::*;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
 use web_rwkv::context::Context;
@@ -59,7 +58,7 @@ impl InferStates {
         tokens: Vec<Vec<u16>>,
     ) -> Result<Vec<Vec<f32>>> {
         let states = states
-            .par_iter()
+            .iter()
             .map(|state_id| self.get_state(&state_id))
             .collect::<Vec<_>>();
 

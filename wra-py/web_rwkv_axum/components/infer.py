@@ -14,9 +14,14 @@ if TYPE_CHECKING:
 class ExhaustionReset:
     transformers: list[bool]
     sampler: bool
+    normalizer: bool
 
     def payload(self):
-        return {"transformers": self.transformers, "sampler": self.sampler}
+        return {
+            "transformers": self.transformers,
+            "sampler": self.sampler,
+            "normalizer": self.normalizer,
+        }
 
 
 @dataclass

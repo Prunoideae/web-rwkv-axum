@@ -9,6 +9,8 @@ from ...typed.bnf import RuleSet, Rule
 
 def hashstring(s: str) -> str:
     h = hashlib.new("sha256")
+    if s is None:
+        s = ""
     h.update(s.encode())
     return h.hexdigest()[:16]
 
@@ -142,14 +144,14 @@ def numbered_list(rules: RuleSet, count: int | tuple[int, int] = 0, pre: str | R
     """
 
     def prefix():
-        pre = hashstring(pre)
+        pre_str = hashstring(pre)
         if isinstance(count, int):
             if count == 0:
-                return f"0_{pre}"
+                return f"0_{pre_str}"
             else:
-                return f"0_{count}_{pre}"
+                return f"0_{count}_{pre_str}"
         else:
-            return f"{count[0]}_{count[1]}_{pre}"
+            return f"{count[0]}_{count[1]}_{pre_str}"
 
     prefix: str = prefix()
 

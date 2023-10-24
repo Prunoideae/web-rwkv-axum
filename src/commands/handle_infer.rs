@@ -78,31 +78,30 @@ async fn infer_and_sample(
                 .and(normalizer_update);
             // If any interruption occurred, reset things used as it is terminated.
             // Some transformer, sampler or normalizer can be ignored.
-            if let Err(e) = &result {
-                if e.exhausted() {
-                    if let Some(ResetSetting {
-                        transformers: transformer_flags,
-                        sampler: sampler_flag,
-                        normalizer: normalizer_flag,
-                    }) = reset_on_exhaustion
-                    {
-                        transformers
-                            .iter()
-                            .flatten()
-                            .zip(transformer_flags.iter())
-                            .par_bridge()
-                            .for_each(|(t_id, update)| {
-                                if *update {
-                                    app_state.0.transformers.reset_transformer(&t_id).unwrap()
-                                }
-                            });
-                        if *sampler_flag {
-                            app_state.0.samplers.reset_sampler(&sampler).unwrap();
-                        }
-                        if let Some(n_id) = normalizer {
-                            if *normalizer_flag {
-                                app_state.0.normalizers.reset_normalizer(&n_id).unwrap();
+            if let Err(InferenceInterruption::Exhaustion) = &result {
+                if let Some(ResetSetting {
+                    transformers: transformer_flags,
+                    sampler: sampler_flag,
+                    normalizer: normalizer_flag,
+                }) = reset_on_exhaustion
+                {
+                    transformers
+                        .iter()
+                        .flatten()
+                        .zip(transformer_flags.iter())
+                        .par_bridge()
+                        .for_each(|(t_id, update)| {
+                            if *update {
+                                println!("Reset {}", t_id);
+                                app_state.0.transformers.reset_transformer(&t_id).unwrap()
                             }
+                        });
+                    if *sampler_flag {
+                        app_state.0.samplers.reset_sampler(&sampler).unwrap();
+                    }
+                    if let Some(n_id) = normalizer {
+                        if *normalizer_flag {
+                            app_state.0.normalizers.reset_normalizer(&n_id).unwrap();
                         }
                     }
                 }

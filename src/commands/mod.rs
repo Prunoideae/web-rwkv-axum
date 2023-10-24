@@ -52,7 +52,6 @@ impl TextCommand {
                 //Normalizers
                 handle_normalizers::create_normalizer,
                 handle_normalizers::copy_normalizer,
-                handle_normalizers::update_normalizer,
                 handle_normalizers::delete_normalizer,
                 handle_normalizers::reset_normalizer,
                 //Infer

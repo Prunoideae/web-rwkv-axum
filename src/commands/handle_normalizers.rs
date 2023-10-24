@@ -2,9 +2,7 @@ use anyhow::{Error, Result};
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::{app::AppState, components::InferenceInterruption};
-
-use super::helpers;
+use crate::app::AppState;
 
 #[derive(Debug, Deserialize)]
 struct NormalizerArgs {
@@ -65,33 +63,6 @@ pub async fn delete_normalizer(data: Option<Value>, state: AppState) -> Result<V
             .map(|_| Value::Null)
     } else {
         Err(Error::msg("Field data is needed to specify normalizer id!"))
-    }
-}
-
-#[derive(Debug, Deserialize)]
-struct NormalizerUpdate {
-    normalizer: String,
-    tokens: Value,
-}
-
-#[inline]
-pub async fn update_normalizer(data: Option<Value>, state: AppState) -> Result<Value> {
-    if let Some(data) = data {
-        let NormalizerUpdate { normalizer, tokens } = serde_json::from_value(data)?;
-        let tokens = helpers::to_token_vec(&state, tokens)?;
-        state
-            .0
-            .normalizers
-            .update_normalizer(&normalizer, &tokens)
-            .map_err(|interruption| match interruption {
-                InferenceInterruption::Exhaustion => Error::msg("Normalizer is exhausted!"),
-                InferenceInterruption::Error(e) => e,
-            })
-            .map(|_| Value::Null)
-    } else {
-        Err(Error::msg(
-            "Field data is needed to specify transformer id and tokens!",
-        ))
     }
 }
 

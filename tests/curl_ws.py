@@ -62,7 +62,7 @@ commands = [
             "data": {
                 "type_id": "bnf_grammar",
                 "params": {
-                    "grammar": "<sequence>::=<any!>|<any!><sequence>\n<start>::=<sequence>",
+                    "grammar": "<sequence>::=<any!>|<any!><sequence>\n<start>::=<sequence><sequence>",
                     "stack_arena_capacity": 1024 * 1024,
                     "grammar_stack_arena_capacity": 1024,
                     "start_nonterminal": "start",
@@ -100,14 +100,11 @@ commands = [
         {
             "tokens": [prompt],
             "states": [state_name],
-            "transformers": [[transformer_name + "1", transformer_name, transformer_name + "0"]],
+            "transformers": [[transformer_name + "1", transformer_name + "0", transformer_name]],
             "sampler": sampler_name,
             "terminal": terminal_name,
             "update_prompt": False,
-            "reset_on_exhaustion": {
-                "transformers": [[True, True, True]],
-                "sampler": True,
-            },
+            "reset_on_exhaustion": True,
         },
     ],
 ]
@@ -133,14 +130,11 @@ async def main():
             data = {
                 "tokens": None,
                 "states": [state_name],
-                "transformers": [[transformer_name + "1", transformer_name, transformer_name + "0"]],
+                "transformers": [[transformer_name + "1", transformer_name + "0", transformer_name]],
                 "sampler": sampler_name,
                 "terminal": terminal_name,
                 "update_prompt": True,
-                "reset_on_exhaustion": {
-                    "transformers": [[True, True, True]],
-                    "sampler": True,
-                },
+                "reset_on_exhaustion": True,
             }
             data["tokens"] = [[result]]
             try:

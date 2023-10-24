@@ -1,8 +1,8 @@
 from web_rwkv_axum.api import Session
-from web_rwkv_axum.builders.blocks.special import email
+from web_rwkv_axum.builders.blocks.md_blocks import numbered_list, heading
 from web_rwkv_axum.typed.bnf import RuleSet
 from web_rwkv_axum.builders.transformers import GlobalPenalty, BNFTransformer, SchemaBNF, DisableToken
-from web_rwkv_axum.builders.samplers import Typical
+from web_rwkv_axum.builders.samplers import Typical, Nucleus
 from web_rwkv_axum.builders.terminals import Lengthed
 from time import time
 
@@ -13,30 +13,25 @@ async def main():
     async with Session(uri) as session:
         penalty = await session.transformers.create_transformer(GlobalPenalty())
 
-        ruleset = RuleSet("email")
-        match_email = email(ruleset)
-        match_all = ruleset.define(f"' '{match_email}'\\n\\n'")
+        ruleset = RuleSet("steps")
+        title = heading(ruleset, 0, pre=ruleset.literal("Funding Proposal"))
+        match_list = numbered_list(ruleset)
         disable_0 = await session.transformers.create_transformer(DisableToken([0]))
-        print(ruleset.declare())
-        bnf = await session.transformers.create_transformer(BNFTransformer(start=match_all, rules=ruleset))
+        bnf = await session.transformers.create_transformer(BNFTransformer(start=ruleset.define(ruleset.join(title, match_list)), rules=ruleset))
 
-        sampler = await session.samplers.create_sampler(Typical(0.1, 0.1))
-        terminal = await session.terminals.create_terminal(Lengthed(16))
+        sampler = await session.samplers.create_sampler(Typical())
+        terminal = await session.terminals.create_terminal(Lengthed(256))
         pipeline = session.infer.pipeline(
             (await session.states.create_state(), [disable_0, bnf]),
             sampler=sampler,
             terminal=terminal,
         )
 
-        prompt = """Instruction: Extract the email address from input.
+        prompt = """Instruction: Write a proposal for funding.
 
-Input: Amy(amy@sus.com)
-
-Response: amy@sus.com
-
-Input: Tom(tom@foobar.com)
-
-Response:"""
+Response:
+```markdown
+"""
 
         result = await pipeline.infer(prompt, update_prompt=False)
         print(result.result)
