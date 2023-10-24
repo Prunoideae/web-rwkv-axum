@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use tokio::sync::{mpsc::Sender, oneshot};
-use web_rwkv::{context::Context, model::Model, tokenizer::Tokenizer};
+use web_rwkv::{context::Context, tokenizer::Tokenizer};
 
 use crate::{
     components::{
-        permit::BatchRequest, sampler::Samplers, softmax::Softmax, state::InferStates,
-        terminal::Terminals, transformer::Transformers,
+        model::AxumModel, normalizer::Normalizers, permit::BatchRequest, sampler::Samplers,
+        softmax::Softmax, state_new::InferStates, terminal::Terminals, transformer::Transformers,
     },
     config::ModelConfig,
 };
@@ -17,11 +17,12 @@ pub struct InnerState {
     pub samplers: Arc<Samplers>,
     pub transformers: Arc<Transformers>,
     pub terminals: Arc<Terminals>,
+    pub normalizers: Arc<Normalizers>,
     pub states: InferStates,
     softmax_queue: Sender<Vec<(Vec<f32>, oneshot::Sender<Vec<f32>>)>>,
     pub tokenizer: Arc<Tokenizer>,
     pub context: Context,
-    pub model: Arc<Model<'static>>,
+    pub model: Arc<AxumModel>,
     pub batch_request: BatchRequest,
 }
 #[derive(Clone)]
@@ -43,6 +44,7 @@ impl AppState {
             samplers: Arc::new(Samplers::new()),
             transformers: Arc::new(Transformers::new()),
             terminals: Arc::new(Terminals::new()),
+            normalizers: Arc::new(Normalizers::new()),
             softmax_queue: softmax_sender,
             tokenizer: Arc::new(config.tokenizer.load_tokenizer().await?),
             context: context.clone(),

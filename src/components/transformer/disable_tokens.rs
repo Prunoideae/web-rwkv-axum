@@ -20,18 +20,9 @@ pub struct DisableTokens {
 }
 
 impl Transformer for DisableTokens {
-    fn update(
-        &mut self,
-        _prompt: &Vec<u16>,
-    ) -> anyhow::Result<(), crate::components::InferenceInterruption> {
-        Ok(())
-    }
-
     fn transform(&self, logits: Vec<f32>) -> Vec<f32> {
         (Array1::from_vec(logits) + &self.tokens).into_raw_vec()
     }
-
-    fn clear(&mut self) {}
 
     fn clone(&self) -> Box<dyn Transformer> {
         Box::new(DisableTokens {

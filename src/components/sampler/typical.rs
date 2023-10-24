@@ -7,48 +7,28 @@ use serde_json::Value;
 use crate::{app::AppState, components::sampler::utils::argsort};
 
 use super::{types::Sampler, utils};
-#[derive(Debug, Deserialize)]
-struct TypicalSamplerData {
-    tau: f32,
-    temp: f32,
-}
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize)]
 pub struct TypicalSampler {
     tau: f32,
     temp: f32,
-    vocab_size: usize,
 }
 
 impl TypicalSampler {
-    pub fn initialize(state: AppState, data: Option<Value>) -> Result<Box<dyn Sampler>> {
-        let data = serde_json::from_value::<TypicalSamplerData>(data.ok_or(Error::msg(
-            "Invalid BNFData. Example format:{
+    pub fn initialize(_state: AppState, data: Option<Value>) -> Result<Box<dyn Sampler>> {
+        let data = serde_json::from_value::<TypicalSampler>(data.ok_or(Error::msg(
+            "Invalid typical sampler data. Example format:{
                 tau: f32,
                 temp: f32,
             }",
         ))?)?;
-        Ok(Box::new(TypicalSampler {
-            tau: data.tau,
-            temp: data.temp,
-            vocab_size: state.0.tokenizer.bytes_to_token_index().len(),
-        }))
+        Ok(Box::new(data))
     }
 }
 
 impl Sampler for TypicalSampler {
-    fn update(
-        &mut self,
-        _tokens: &Vec<Vec<u16>>,
-    ) -> anyhow::Result<(), crate::components::InferenceInterruption> {
-        Ok(())
-    }
-
     fn sample(&self, probs: Vec<Vec<f32>>) -> u16 {
-        assert!(probs.len() == 1);
-        let mut probs = probs;
-        let mut probs = probs.pop().unwrap();
-        probs.truncate(self.vocab_size);
+        let probs = probs[0].clone();
         let mut probs = Array::from_vec(probs);
         let mut logits = probs.clone();
         logits.par_mapv_inplace(|x| -x.ln());
@@ -71,7 +51,6 @@ impl Sampler for TypicalSampler {
             probs.par_mapv_inplace(|x| x.powf(1.0 / self.temp));
         }
         let mut rng = rand::thread_rng();
-        // println!("{:?}",probs);
         let token_id = if probs.len() == 1 {
             sorted_ids[0] as u16
         } else {
@@ -82,13 +61,10 @@ impl Sampler for TypicalSampler {
         token_id
     }
 
-    fn clear(&mut self) {}
-
     fn clone(&self) -> Box<dyn Sampler> {
         Box::new(TypicalSampler {
             tau: self.tau,
             temp: self.temp,
-            vocab_size: self.vocab_size,
         })
     }
 }

@@ -4,3 +4,9 @@ commands.txt
 flamegraph.svg
 perf.data
 perf.data.old
+
+# Python things
+/wra-py/web_rwkv_axum.egg-info
+/wra-py/build
+/wra-py/dist
+/wra-py/bnf_sampler

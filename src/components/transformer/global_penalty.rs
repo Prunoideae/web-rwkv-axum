@@ -8,7 +8,7 @@ use crate::{app::AppState, components::InferenceInterruption};
 use super::types::Transformer;
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct PenaltyData {
+struct PenaltyData {
     alpha_occurrence: f32,
     alpha_presence: f32,
 }
@@ -22,9 +22,9 @@ pub struct GlobalPenalty {
 
 impl Transformer for GlobalPenalty {
     fn update(&mut self, prompt: &Vec<u16>) -> Result<(), InferenceInterruption> {
-        for token in prompt {
-            self.record[*token as usize] += self.data.alpha_occurrence;
-            self.presence[*token as usize] = self.data.alpha_presence;
+        for &token in prompt {
+            self.record[token as usize] += self.data.alpha_occurrence;
+            self.presence[token as usize] = self.data.alpha_presence;
         }
         Ok(())
     }

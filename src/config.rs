@@ -10,10 +10,17 @@ use tokio::{
 use serde::Deserialize;
 use web_rwkv::{
     context::{Context, ContextBuilder, Instance},
-    model::{LayerFlags, Model, ModelBuilder, Quantization},
+    model::{
+        loader::Loader,
+        LayerFlags, ModelBuilder,
+        ModelVersion::{V4, V5},
+        Quantization,
+    },
     tokenizer::Tokenizer,
-    wgpu::Adapter,
+    wgpu::{Adapter, Backends},
 };
+
+use crate::components::model::AxumModel;
 
 mod props {
     use serde::Deserialize;
@@ -93,9 +100,9 @@ impl ModelSpec {
         if let Some(preference) = &self.preference {
             Ok(instance.adapter(preference.to_web_rwkv()).await?)
         } else if let Some(index) = self.adapter {
-            Ok(instance.select_adapter(index)?)
+            Ok(instance.select_adapter(Backends::PRIMARY, index)?)
         } else {
-            Ok(instance.select_adapter(0)?)
+            Ok(instance.select_adapter(Backends::PRIMARY, 0)?)
         }
     }
 
@@ -110,7 +117,7 @@ impl ModelSpec {
         Ok(context.build().await?)
     }
 
-    pub async fn load_model(&self, context: &Context) -> Result<Model<'static>> {
+    pub async fn load_model(&self, context: &Context) -> Result<AxumModel> {
         let file = File::open(&self.path).await?;
         let map = unsafe { Mmap::map(&file)? };
         let quant = self
@@ -118,11 +125,22 @@ impl ModelSpec {
             .map(|bits| Quantization::Int8(LayerFlags::from_bits_retain(bits)))
             .unwrap_or_default();
 
-        Ok(ModelBuilder::new(context, &map)
-            .with_token_chunk_size(self.get_chunk_size())
-            .with_head_chunk_size(8192)
-            .with_quant(quant)
-            .build()?)
+        Ok(match Loader::info(&map)?.version {
+            V4 => AxumModel::V4(
+                ModelBuilder::new(context, &map)
+                    .with_token_chunk_size(self.get_chunk_size())
+                    .with_head_chunk_size(8192)
+                    .with_quant(quant)
+                    .build()?,
+            ),
+            V5 => AxumModel::V5(
+                ModelBuilder::new(context, &map)
+                    .with_token_chunk_size(self.get_chunk_size())
+                    .with_head_chunk_size(8192)
+                    .with_quant(quant)
+                    .build()?,
+            ),
+        })
     }
 }
 

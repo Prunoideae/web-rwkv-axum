@@ -38,12 +38,14 @@ pub fn to_token_vec(state: &AppState, data: Value) -> Result<Vec<Vec<u16>>> {
 pub struct ResetSetting {
     pub transformers: Vec<bool>,
     pub sampler: bool,
+    pub normalizer: bool,
 }
 
 #[derive(Debug, Deserialize)]
 struct ResetData {
     transformers: Vec<Vec<bool>>,
     sampler: bool,
+    normalizer: bool,
 }
 
 impl ResetSetting {
@@ -51,6 +53,7 @@ impl ResetSetting {
         Self {
             transformers: transformers.iter().flatten().map(|_| value).collect_vec(),
             sampler: value,
+            normalizer: value,
         }
     }
 
@@ -61,6 +64,7 @@ impl ResetSetting {
                 let ResetData {
                     transformers,
                     sampler,
+                    normalizer,
                 } = serde_json::from_value::<ResetData>(value)?;
                 if transformers
                     .iter()
@@ -72,6 +76,7 @@ impl ResetSetting {
                 Ok(Self {
                     transformers: transformers.into_iter().flatten().collect(),
                     sampler,
+                    normalizer,
                 })
             }
             _ => Err(Error::msg("Must be a bool or an object!")),

@@ -13,6 +13,7 @@ struct InferPayload {
     states: Vec<String>,
     transformers: Vec<Vec<String>>,
     sampler: String,
+    normalizer: Option<String>,
     terminal: String,
     update_prompt: bool,
     reset_on_exhaustion: Value,
@@ -38,6 +39,7 @@ async fn infer_and_sample(
     transformers: &Vec<Vec<String>>,
     tokens: Vec<Vec<u16>>,
     sampler: &String,
+    normalizer: &Option<String>,
     update_prompts: bool,
     reset_on_exhaustion: Option<&ResetSetting>,
 ) -> Result<u16, InferenceInterruption> {
@@ -63,29 +65,43 @@ async fn infer_and_sample(
                 })
                 .collect::<Result<Vec<()>, InferenceInterruption>>();
             let sampler_update = app_state.0.samplers.update_sampler(&sampler, &tokens);
-
-            let result = transformer_update.and(sampler_update);
+            let normalizer_update = if let Some(normalizer) = normalizer {
+                app_state
+                    .0
+                    .normalizers
+                    .update_normalizer(&normalizer, &tokens)
+            } else {
+                Ok(())
+            };
+            let result = transformer_update
+                .and(sampler_update)
+                .and(normalizer_update);
             // If any interruption occurred, reset things used as it is terminated.
-            // Some transformer can be ignored.
-            if let Err(e) = &result {
-                if e.exhausted() {
-                    if let Some(ResetSetting {
-                        transformers: transformer_flags,
-                        sampler: sampler_flag,
-                    }) = reset_on_exhaustion
-                    {
-                        transformers
-                            .iter()
-                            .flatten()
-                            .zip(transformer_flags.iter())
-                            .par_bridge()
-                            .for_each(|(t_id, update)| {
-                                if *update {
-                                    app_state.0.transformers.reset_transformer(&t_id).unwrap()
-                                }
-                            });
-                        if *sampler_flag {
-                            app_state.0.samplers.reset_sampler(&sampler).unwrap();
+            // Some transformer, sampler or normalizer can be ignored.
+            if let Err(InferenceInterruption::Exhaustion) = &result {
+                if let Some(ResetSetting {
+                    transformers: transformer_flags,
+                    sampler: sampler_flag,
+                    normalizer: normalizer_flag,
+                }) = reset_on_exhaustion
+                {
+                    transformers
+                        .iter()
+                        .flatten()
+                        .zip(transformer_flags.iter())
+                        .par_bridge()
+                        .for_each(|(t_id, update)| {
+                            if *update {
+                                println!("Reset {}", t_id);
+                                app_state.0.transformers.reset_transformer(&t_id).unwrap()
+                            }
+                        });
+                    if *sampler_flag {
+                        app_state.0.samplers.reset_sampler(&sampler).unwrap();
+                    }
+                    if let Some(n_id) = normalizer {
+                        if *normalizer_flag {
+                            app_state.0.normalizers.reset_normalizer(&n_id).unwrap();
                         }
                     }
                 }
@@ -113,7 +129,15 @@ async fn infer_and_sample(
     } else {
         logits
     };
-    let probs = app_state.softmax(logits).await;
+    let probs = if let Some(normalizer) = normalizer {
+        app_state
+            .0
+            .normalizers
+            .normalize_logits(normalizer, logits)
+            .map_err(|e| InferenceInterruption::Error(e))?
+    } else {
+        app_state.softmax(logits).await
+    };
     return tokio::task::block_in_place(move || app_state.0.samplers.sample_token(&sampler, probs))
         .map_err(|e| InferenceInterruption::Error(e));
 }
@@ -133,6 +157,7 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
             states,
             transformers,
             sampler,
+            normalizer,
             terminal,
             update_prompt,
             reset_on_exhaustion,
@@ -158,6 +183,12 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
             return Err(Error::msg("One or more transformer ids not exist!"));
         }
 
+        if let Some(normalizer) = &normalizer {
+            if !state.0.normalizers.has_normalizer(&normalizer) {
+                return Err(Error::msg("Normalizer id doesn't exist!"));
+            }
+        }
+
         if !state.0.samplers.has_sampler(&sampler) {
             return Err(Error::msg("Sampler id does not exist!"));
         }
@@ -172,9 +203,7 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
         }
 
         let (result, last_token, inferred_tokens, terminate_reason) = {
-            let mut out_tokens = Vec::with_capacity(4);
-            let mut inferred_tokens: usize = 1usize;
-            let mut result = String::new();
+            let mut out_tokens = Vec::with_capacity(64);
 
             // Locks state_size slots for the infer
             let _permits = state.0.batch_request.request(states.len());
@@ -188,6 +217,7 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
                     &transformers,
                     tokens,
                     &sampler,
+                    &normalizer,
                     update_prompt,
                     None,
                 )
@@ -203,26 +233,22 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
             let mut last_token = *out_tokens.last().unwrap();
 
             loop {
-                if let Ok(Ok(partial)) = state
+                if let Ok(Ok(output)) = state
                     .0
                     .tokenizer
                     .decode(&out_tokens.as_slice())
                     .map(|x| String::from_utf8(x))
                 {
-                    result.push_str(partial.as_str());
-                    inferred_tokens += out_tokens.len();
-                    out_tokens.clear()
-                }
-
-                // out token must be empty when output, or it will be extremely tricky
-                // to hand over the out token.
-                if out_tokens.is_empty()
-                    && state
+                    // out token must be empty when output, or it will be extremely tricky
+                    // to hand over the out token.
+                    if state
                         .0
                         .terminals
-                        .terminate(&terminal, &result, inferred_tokens)?
-                {
-                    break (result, last_token, inferred_tokens, "by_terminal");
+                        .terminate(&terminal, &output, out_tokens.len())?
+                        || last_token == 0
+                    {
+                        break (output, last_token, out_tokens.len(), "by_terminal");
+                    }
                 }
 
                 // Not ready, infer next one using last token
@@ -233,6 +259,7 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
                         &transformers,
                         vec![vec![last_token]; states.len()],
                         &sampler,
+                        &normalizer,
                         // In autoregressive generation must follow the rule
                         true,
                         Some(&reset_on_exhaustion),
@@ -242,7 +269,15 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
                         Ok(token) => token,
                         // Exhausted, so stop infer.
                         Err(InferenceInterruption::Exhaustion) => {
-                            break (result, last_token, inferred_tokens, "by_exhaustion");
+                            break (
+                                String::from_utf8_lossy(
+                                    &state.0.tokenizer.decode(&out_tokens.as_slice()).unwrap(),
+                                )
+                                .to_string(),
+                                last_token,
+                                out_tokens.len(),
+                                "by_exhaustion",
+                            );
                         }
                         // A sampling/transformation error occurred, inference
                         // is terminated

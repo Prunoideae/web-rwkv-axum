@@ -16,8 +16,6 @@ impl Terminal for LengthedTerminal {
         Ok(token_count >= self.length)
     }
 
-    fn clear(&mut self) {}
-
     fn clone(&self) -> Box<dyn Terminal> {
         Box::new(LengthedTerminal {
             length: self.length,
