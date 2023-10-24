@@ -6,8 +6,8 @@ use web_rwkv::{context::Context, tokenizer::Tokenizer};
 
 use crate::{
     components::{
-        model::TypelessModel, normalizer::Normalizers, permit::BatchRequest, sampler::Samplers,
-        softmax::Softmax, state::InferStates, terminal::Terminals, transformer::Transformers,
+        model::AxumModel, normalizer::Normalizers, permit::BatchRequest, sampler::Samplers,
+        softmax::Softmax, state_new::InferStates, terminal::Terminals, transformer::Transformers,
     },
     config::ModelConfig,
 };
@@ -22,7 +22,7 @@ pub struct InnerState {
     softmax_queue: Sender<Vec<(Vec<f32>, oneshot::Sender<Vec<f32>>)>>,
     pub tokenizer: Arc<Tokenizer>,
     pub context: Context,
-    pub model: Arc<TypelessModel>,
+    pub model: Arc<AxumModel>,
     pub batch_request: BatchRequest,
 }
 #[derive(Clone)]

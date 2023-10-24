@@ -11,7 +11,7 @@ anyhow = "1.0.75"
 async-trait = "0.1.73"
 axum = {version = "0.6.20", features = ["ws"]}
 bit-set = "0.5.3"
-bnf_sampler = "0.3.1"
+bnf_sampler = "0.3.4"
 bson = "2.7.0"
 clap = {version = "4.4.1", features = ["derive"]}
 dashmap = {version = "5.5.3", features = ["rayon", "serde"]}
@@ -21,9 +21,11 @@ futures = "0.3.28"
 futures-util = "0.3.28"
 itertools = "0.11.0"
 lazy_static = "1.4.0"
+lru = "0.12.0"
 maplit = "1.0.2"
 memmap2 = "0.7.1"
 ndarray = { version = "0.15.6", features = ["serde", "rayon", "blas"] }
+nohash-hasher = "0.2.0"
 num_cpus = "1.16.0"
 ordered-float = "3.9.1"
 qp-trie = "0.8.1"

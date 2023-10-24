@@ -1,6 +1,8 @@
 from web_rwkv_axum.builders.schemas.json_schema import JsonFactory
 from web_rwkv_axum.builders import bnf
 from web_rwkv_axum.typed.json import Time
+from web_rwkv_axum.typed.bnf import RuleSet
+from web_rwkv_axum.builders.blocks.special import email
 
 from dataclasses import field, dataclass, fields
 
@@ -35,3 +37,7 @@ print(event.first_author)
 print(event.time_epoch, event.time)
 print("Class Entrypoint:", entry)
 print(bnf_string)
+
+ruleset = RuleSet("email")
+match_email = email(ruleset)
+match_all = ruleset.define(f"' '{match_email}'\\n\\n'")

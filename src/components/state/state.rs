@@ -5,23 +5,23 @@ use dashmap::{DashMap, DashSet};
 use tokio::sync::mpsc;
 use web_rwkv::context::Context;
 
-use crate::components::model::{TypelessModel, TypelessModelState};
+use crate::components::model::{AxumModel, AxumModelState};
 
 use super::pool::{InferPool, InferRequest};
 
 struct InnerState {
     id: String,
-    state: TypelessModelState,
+    state: AxumModelState,
     context: Context,
-    model: Arc<TypelessModel>,
+    model: Arc<AxumModel>,
 }
 
 #[derive(Clone)]
 pub struct InferState(Arc<InnerState>);
 
 impl InferState {
-    pub fn new(id: String, context: Context, model: Arc<TypelessModel>) -> Self {
-        let state = TypelessModelState::new(&context, &model, 1);
+    pub fn new(id: String, context: Context, model: Arc<AxumModel>) -> Self {
+        let state = AxumModelState::new(&context, &model, 1);
         Self(Arc::new(InnerState {
             id,
             state,
@@ -31,12 +31,12 @@ impl InferState {
     }
 
     #[inline(always)]
-    pub fn load_to(&self, pool: &TypelessModelState, to: usize) -> Result<()> {
+    pub fn load_to(&self, pool: &AxumModelState, to: usize) -> Result<()> {
         Ok(self.0.state.blit_batch(pool, 0, to)?)
     }
 
     #[inline(always)]
-    pub fn back_from(&self, pool: &TypelessModelState, from: usize) -> Result<()> {
+    pub fn back_from(&self, pool: &AxumModelState, from: usize) -> Result<()> {
         Ok(pool.blit_batch(&self.0.state, from, 0)?)
     }
 
@@ -46,7 +46,7 @@ impl InferState {
     }
 
     pub fn clone_new(&self, id: String) -> Result<Self> {
-        let new_state = TypelessModelState::new(&self.0.context, &self.0.model, 1);
+        let new_state = AxumModelState::new(&self.0.context, &self.0.model, 1);
         self.load_to(&new_state, 0)?;
         Ok(Self(Arc::new(InnerState {
             id,
@@ -66,7 +66,7 @@ impl PartialEq for InferState {
 
 pub struct InnerStates {
     pub context: Context,
-    pub model: Arc<TypelessModel>,
+    pub model: Arc<AxumModel>,
     pub pool: InferPool,
     pub state_ids: DashSet<String>,
     pub states: DashMap<String, InferState>,

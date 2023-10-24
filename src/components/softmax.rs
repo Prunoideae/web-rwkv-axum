@@ -6,16 +6,16 @@ use tokio::{
     task::JoinHandle,
 };
 
-use super::model::TypelessModel;
+use super::model::AxumModel;
 
 #[derive(Clone)]
 pub struct Softmax {
-    model: Arc<TypelessModel>,
+    model: Arc<AxumModel>,
     max_batch_size: usize,
 }
 
 impl Softmax {
-    pub async fn new(model: Arc<TypelessModel>, max_batch_size: usize) -> Self {
+    pub async fn new(model: Arc<AxumModel>, max_batch_size: usize) -> Self {
         Self {
             model,
             max_batch_size,

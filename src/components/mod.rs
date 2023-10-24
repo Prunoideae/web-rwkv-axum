@@ -6,6 +6,7 @@ pub mod permit;
 pub mod sampler;
 pub mod softmax;
 pub mod state;
+pub mod state_new;
 pub mod terminal;
 pub mod transformer;
 pub mod normalizer;

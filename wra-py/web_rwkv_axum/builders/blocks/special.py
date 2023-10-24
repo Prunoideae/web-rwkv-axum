@@ -38,7 +38,7 @@ def email(type_decl: RuleSet) -> Rule:
         domain_rest = type_decl.repeat(f"'.'{subdomain}")
         domain = type_decl.define(type_decl.optional(subdomain, domain_rest))
 
-        specials = "!#$%&*+-/=?^_|~"
+        specials = "!#$%&*+-/=?^_~"
         specials = type_decl.define(type_decl.union(*(type_decl.literal(x) for x in specials)))
         allowed = type_decl.define(type_decl.union(specials, alphanum))
 
