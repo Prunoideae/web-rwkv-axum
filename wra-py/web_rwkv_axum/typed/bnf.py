@@ -8,6 +8,25 @@ class Rule:
 
 
 class RuleSet:
+    '''
+    Defines a set of rules which can be compiled to a BNF declaration
+    string.
+
+    A rule is completed *whenever* it can be completed. So, having a
+    nonterminal matching a repeat element at the end will IMMEDIATELY
+    terminate the matching if any element is matched.
+
+    So, if you want to match:
+    ```text
+    <some><some><some>... (Goes on infinitely)
+    ```
+
+    BNF will only match the first `<some>` and return.
+
+    You should always specify an ending condition (even if it is not 
+    achievable sometimes) for your grammar. A finite grammar can be 
+    good for your parsers, and ours.
+    '''
     def __init__(self, rule_prefix: str = "bnf") -> None:
         self.prefix = rule_prefix
         self.rules: dict[str, Rule] = {}
@@ -36,7 +55,13 @@ class RuleSet:
 
     def literal(self, literal) -> str:
         sanitized = str(literal)
-        sanitized = sanitized.replace("\n", "\\n").replace("\t", "\\t").replace("\\", "\\\\").replace("\r", "\\r")
+        table = {
+            "\n": "\\n",
+            "\t": "\\t",
+            "\\": "\\\\",
+            "\r": "\\r",
+        }
+        sanitized = sanitized.translate(table)
         return f'"{sanitized}"' if '"' not in sanitized else f"'{sanitized}'"
 
     def union(self, *elements: str | Rule) -> str:

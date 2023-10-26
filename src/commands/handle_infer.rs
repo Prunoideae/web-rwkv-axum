@@ -92,7 +92,6 @@ async fn infer_and_sample(
                         .par_bridge()
                         .for_each(|(t_id, update)| {
                             if *update {
-                                println!("Reset {}", t_id);
                                 app_state.0.transformers.reset_transformer(&t_id).unwrap()
                             }
                         });
