@@ -43,9 +43,9 @@ pub struct ResetSetting {
 
 #[derive(Debug, Deserialize)]
 struct ResetData {
-    transformers: Vec<Vec<bool>>,
-    sampler: bool,
-    normalizer: bool,
+    transformers: Option<Vec<Vec<bool>>>,
+    sampler: Option<bool>,
+    normalizer: Option<bool>,
 }
 
 impl ResetSetting {
@@ -66,6 +66,16 @@ impl ResetSetting {
                     sampler,
                     normalizer,
                 } = serde_json::from_value::<ResetData>(value)?;
+
+                let sampler = sampler.unwrap_or(true);
+                let normalizer = normalizer.unwrap_or(true);
+                let transformers = transformers.unwrap_or_else(|| {
+                    transformer_ids
+                        .iter()
+                        .map(|x| x.iter().map(|_| true).collect())
+                        .collect()
+                });
+
                 if transformers
                     .iter()
                     .zip(transformer_ids.iter())
