@@ -22,6 +22,7 @@ struct InnerStates {
     pool: InferPool,
     states: DashMap<String, InferState>,
     request_queue: mpsc::Sender<Vec<InferRequest>>,
+    state_size: Option<usize>,
 }
 
 #[derive(Clone)]
@@ -39,6 +40,7 @@ impl InferStates {
             model.clone(),
             config.model.get_max_concurrency(),
             config.model.get_batch_size(),
+            config.model.get_max_state_size(),
             batch_lock,
         );
         let sender = pool.start_loop().await;
@@ -49,6 +51,7 @@ impl InferStates {
             pool,
             states: DashMap::with_capacity(128),
             request_queue: sender,
+            state_size: config.model.get_max_state_size(),
         })))
     }
 
@@ -90,6 +93,7 @@ impl InferStates {
                 state_id.to_string(),
                 self.0.context.clone(),
                 self.0.model.clone(),
+                self.0.state_size,
             ),
         );
         Ok(())
@@ -132,6 +136,7 @@ impl InferStates {
                     state_id.to_string(),
                     self.0.context.clone(),
                     self.0.model.clone(),
+                    self.0.state_size,
                 )
             })
             .clone()

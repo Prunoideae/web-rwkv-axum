@@ -14,10 +14,15 @@ struct InnerState {
 pub struct InferState(Arc<InnerState>);
 
 impl InferState {
-    pub fn new(id: String, context: Context, model: Arc<AxumModel>) -> Self {
+    pub fn new(
+        id: String,
+        context: Context,
+        model: Arc<AxumModel>,
+        chunk_size: Option<usize>,
+    ) -> Self {
         Self(Arc::new(InnerState {
             id,
-            state: Mutex::new(AxumBackedState::new(&context, &model)),
+            state: Mutex::new(AxumBackedState::new(&context, &model, chunk_size)),
         }))
     }
 

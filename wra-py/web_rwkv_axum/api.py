@@ -44,6 +44,12 @@ class Session:
         return self
 
     async def close(self):
+        await asyncio.gather(
+            self.states.close(),
+            self.transformers.close(),
+            self.samplers.close(),
+            self.terminals.close(),
+        )
         await self._ws.close()
         self._ws = None
 

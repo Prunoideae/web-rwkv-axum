@@ -20,8 +20,8 @@ struct InnerState {
 pub struct InferState(Arc<InnerState>);
 
 impl InferState {
-    pub fn new(id: String, context: Context, model: Arc<AxumModel>) -> Self {
-        let state = AxumModelState::new(&context, &model, 1);
+    pub fn new(id: String, context: Context, model: Arc<AxumModel>, max_state_size: Option<usize>) -> Self {
+        let state = AxumModelState::new_sized(&context, &model, 1, max_state_size);
         Self(Arc::new(InnerState {
             id,
             state,
@@ -71,4 +71,5 @@ pub struct InnerStates {
     pub state_ids: DashSet<String>,
     pub states: DashMap<String, InferState>,
     pub request_queue: mpsc::Sender<Vec<InferRequest>>,
+    pub max_state_size: Option<usize>,
 }

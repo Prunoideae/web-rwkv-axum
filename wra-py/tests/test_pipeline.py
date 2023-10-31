@@ -19,7 +19,7 @@ async def main():
         disable_0 = await session.transformers.create_transformer(DisableToken([0]))
         bnf = await session.transformers.create_transformer(BNFTransformer(start=ruleset.define(ruleset.join(title, match_list)), rules=ruleset))
 
-        sampler = await session.samplers.create_sampler(Typical())
+        sampler = await session.samplers.create_sampler(Nucleus())
         terminal = await session.terminals.create_terminal(Lengthed(256))
         pipeline = session.infer.pipeline(
             (await session.states.create_state(), [disable_0, bnf]),
@@ -28,6 +28,8 @@ async def main():
         )
 
         prompt = """Instruction: Write a proposal for funding.
+
+Keywords: COVID-19, SARS-CoV-2, Antiviral agents, Inflammation inhibitors, Antirheumatic drugs, Low molecular weight heparins
 
 Response:
 ```markdown

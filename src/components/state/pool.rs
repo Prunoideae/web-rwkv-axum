@@ -6,7 +6,7 @@ use tokio::sync::{mpsc, oneshot};
 use web_rwkv::context::Context;
 
 use crate::components::{
-    model::{AxumModelState, AxumModel},
+    model::{AxumModel, AxumModelState},
     permit::BatchRequest,
 };
 
@@ -186,13 +186,19 @@ impl InferPool {
         max_concurrent: usize,
         batch_size: usize,
         batch_lock: BatchRequest,
+        max_state_size: Option<usize>,
     ) -> Self {
         let slots = Arc::new(RwLock::new((0..batch_size).map(|_| None).collect_vec()));
         Self(Arc::new(InnerPool {
             max_concurrent,
             batch_lock,
             batch_size,
-            pool: Arc::new(AxumModelState::new(&context, &model, batch_size)),
+            pool: Arc::new(AxumModelState::new_sized(
+                &context,
+                &model,
+                batch_size,
+                max_state_size,
+            )),
             context,
             model,
             batch_slots: slots,

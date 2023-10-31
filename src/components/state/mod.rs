@@ -31,6 +31,7 @@ impl InferStates {
             config.model.get_max_concurrency(),
             config.model.get_batch_size(),
             batch_lock,
+            config.model.get_max_state_size(),
         );
         let sender = pool.start_loop().await;
 
@@ -41,6 +42,7 @@ impl InferStates {
             state_ids: DashSet::with_capacity(128),
             states: DashMap::with_capacity(128),
             request_queue: sender,
+            max_state_size: config.model.get_max_state_size(),
         })))
     }
 
@@ -120,6 +122,7 @@ impl InferStates {
                     state_id.to_string(),
                     self.0.context.clone(),
                     self.0.model.clone(),
+                    self.0.max_state_size,
                 )
             })
             .clone()

@@ -1,3 +1,4 @@
+import asyncio
 from random import randint
 from typing import TYPE_CHECKING
 from dataclasses import dataclass
@@ -72,3 +73,6 @@ class States:
             state_ids.append(state.state_id)
         if not (response := await self._session.call("update_state", {"states": state_ids, "tokens": tokens})).success():
             raise RuntimeError(response.result)
+
+    async def close(self):
+        await asyncio.gather(*(self._session.call("delete_state", state) for state in self._states))

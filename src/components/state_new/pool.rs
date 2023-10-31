@@ -196,6 +196,7 @@ impl InferPool {
         model: Arc<AxumModel>,
         max_concurrency: usize,
         batch_size: usize,
+        state_size: Option<usize>,
         batch_lock: BatchRequest,
     ) -> Self {
         Self(Arc::new(InnerPool {
@@ -203,7 +204,7 @@ impl InferPool {
             batch_size,
             batch_lock,
             model: model.clone(),
-            pool: Arc::new(AxumModelState::new(&context, &model, batch_size)),
+            pool: Arc::new(AxumModelState::new_sized(&context, &model, batch_size, state_size)),
             cache: Arc::new(RwLock::new(LruCache::with_hasher(
                 NonZeroUsize::new(batch_size).unwrap(),
                 BuildNoHashHasher::default(),

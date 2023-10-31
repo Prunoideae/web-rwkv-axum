@@ -1,3 +1,4 @@
+import asyncio
 from typing import TYPE_CHECKING, Any
 from ..helper import get_random
 
@@ -92,3 +93,6 @@ class Terminals:
             raise RuntimeError("Terminal does not exist!")
 
         await self._session.call("reset_terminal", terminal.terminal_id)
+
+    async def close(self):
+        await asyncio.gather(*(self._session.call("delete_terminal", terminal) for terminal in self._terminals))

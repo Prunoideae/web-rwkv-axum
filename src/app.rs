@@ -7,7 +7,7 @@ use web_rwkv::{context::Context, tokenizer::Tokenizer};
 use crate::{
     components::{
         model::AxumModel, normalizer::Normalizers, permit::BatchRequest, sampler::Samplers,
-        softmax::Softmax, state_new::InferStates, terminal::Terminals, transformer::Transformers,
+        softmax::Softmax, state::InferStates, terminal::Terminals, transformer::Transformers,
     },
     config::ModelConfig,
 };

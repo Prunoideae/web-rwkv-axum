@@ -36,6 +36,28 @@ impl AxumModelState {
         }
     }
 
+    pub fn new_sized(
+        context: &Context,
+        model: &AxumModel,
+        batch_size: usize,
+        chunk_size: Option<usize>,
+    ) -> Self {
+        match model {
+            AxumModel::V4(model) => Self::V4(
+                StateBuilder::new(context, model.info())
+                    .with_chunk_size(chunk_size.unwrap_or(model.info().num_layer))
+                    .with_max_batch(batch_size)
+                    .build(),
+            ),
+            AxumModel::V5(model) => Self::V5(
+                StateBuilder::new(context, model.info())
+                    .with_chunk_size(chunk_size.unwrap_or(model.info().num_layer))
+                    .with_max_batch(batch_size)
+                    .build(),
+            ),
+        }
+    }
+
     pub fn blit_batch(
         &self,
         dst: &AxumModelState,
@@ -55,14 +77,18 @@ impl AxumModelState {
 }
 
 impl AxumBackedState {
-    pub fn new(context: &Context, model: &AxumModel) -> Self {
+    pub fn new(context: &Context, model: &AxumModel, chunk_size: Option<usize>) -> Self {
         match model {
-            AxumModel::V4(model) => {
-                Self::V4(StateBuilder::new(context, model.info()).build_backed())
-            }
-            AxumModel::V5(model) => {
-                Self::V5(StateBuilder::new(context, model.info()).build_backed())
-            }
+            AxumModel::V4(model) => Self::V4(
+                StateBuilder::new(context, model.info())
+                    .with_chunk_size(chunk_size.unwrap_or(model.info().num_layer))
+                    .build_backed(),
+            ),
+            AxumModel::V5(model) => Self::V5(
+                StateBuilder::new(context, model.info())
+                    .with_chunk_size(chunk_size.unwrap_or(model.info().num_layer))
+                    .build_backed(),
+            ),
         }
     }
 
