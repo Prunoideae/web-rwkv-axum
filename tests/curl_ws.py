@@ -192,13 +192,14 @@ payload = {}
 
 tokens = 150
 
+prompt = "Instruction: Make up a war news in a fantasy world. Use ` to enclose the response.\n\nResponse:\nTitle: `"
 
 async def main():
     async with connect(uri, ping_timeout=90) as ws:
         for command, payload in commands:
             result = await invoke_command(ws, command, payload)
             print(result, flush=True)
-        await state_updates(ws)
+        # await state_updates(ws)
         result = await invoke_command(
             ws,
             "infer",
@@ -212,6 +213,8 @@ async def main():
                 "reset_on_exhaustion": True,
             },
         )
+
+        print(result)
 
         result = result["result"]
 
@@ -243,7 +246,7 @@ async def main():
             result = result["last_token"]
             break
 
-        await invoke_command(ws, "delete_state", state_name)
+        print(await invoke_command(ws, "delete_state", state_name))
         await invoke_command(ws, "delete_sampler", sampler_name)
         await invoke_command(ws, "delete_transformer", transformer_name)
         await invoke_command(ws, "delete_terminal", terminal_name)

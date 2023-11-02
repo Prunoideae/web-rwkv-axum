@@ -1,19 +1,29 @@
-use self::{
-    pool::InferPool,
-    state::{InferState, InnerStates},
-};
-use crate::{components::state::pool::InferRequest, config::ModelConfig};
 use anyhow::{Error, Result};
-use dashmap::{DashMap, DashSet};
-use rayon::prelude::{IntoParallelRefIterator, ParallelIterator};
+use dashmap::DashMap;
 use std::sync::Arc;
-use tokio::sync::oneshot;
+use tokio::sync::{mpsc, oneshot};
 use web_rwkv::context::Context;
+
+use crate::config::ModelConfig;
+
+use self::{
+    pool::{InferPool, InferRequest},
+    state::InferState,
+};
 
 use super::{model::AxumModel, permit::BatchRequest};
 
 mod pool;
 mod state;
+
+struct InnerStates {
+    context: Context,
+    model: Arc<AxumModel>,
+    pool: InferPool,
+    states: DashMap<String, InferState>,
+    request_queue: mpsc::Sender<Vec<InferRequest>>,
+    state_size: Option<usize>,
+}
 
 #[derive(Clone)]
 pub struct InferStates(Arc<InnerStates>);
@@ -30,19 +40,18 @@ impl InferStates {
             model.clone(),
             config.model.get_max_concurrency(),
             config.model.get_batch_size(),
-            batch_lock,
             config.model.get_max_state_size(),
+            batch_lock,
         );
         let sender = pool.start_loop().await;
 
         Ok(Self(Arc::new(InnerStates {
-            context: context.clone(),
-            model: model.clone(),
+            context,
+            model,
             pool,
-            state_ids: DashSet::with_capacity(128),
             states: DashMap::with_capacity(128),
             request_queue: sender,
-            max_state_size: config.model.get_max_state_size(),
+            state_size: config.model.get_max_state_size(),
         })))
     }
 
@@ -52,7 +61,7 @@ impl InferStates {
         tokens: Vec<Vec<u16>>,
     ) -> Result<Vec<Vec<f32>>> {
         let states = states
-            .par_iter()
+            .iter()
             .map(|state_id| self.get_state(&state_id))
             .collect::<Vec<_>>();
 
@@ -75,36 +84,41 @@ impl InferStates {
     }
 
     pub fn create_state(&self, state_id: &str) -> Result<()> {
-        if self.0.state_ids.contains(state_id) {
+        if self.0.states.contains_key(state_id) {
             return Err(Error::msg("State already exists!"));
         }
-        self.0.state_ids.insert(state_id.to_string());
+        self.0.states.insert(
+            state_id.to_string(),
+            InferState::new(
+                state_id.to_string(),
+                self.0.context.clone(),
+                self.0.model.clone(),
+                self.0.state_size,
+            ),
+        );
         Ok(())
     }
 
     pub fn copy_state(&self, src: &str, dst: &str) -> Result<()> {
-        if self.0.state_ids.contains(dst) {
+        if self.0.states.contains_key(dst) {
             return Err(Error::msg("Destination state already exists!"));
         }
-        if !self.0.state_ids.contains(src) {
+        if !self.0.states.contains_key(src) {
             return Err(Error::msg("Source state id doesn't exist!"));
         }
 
-        self.0.state_ids.insert(dst.to_string());
+        tokio::task::block_in_place(|| {
+            self.0.pool.sync(src);
+            let dst_state = self.0.states.get(src).unwrap().clone_new(dst.to_string())?;
+            self.0.states.insert(dst.to_string(), dst_state);
+            Ok::<(), Error>(())
+        })?;
 
-        if self.0.states.contains_key(src) {
-            tokio::task::block_in_place(|| {
-                self.0.pool.sync(src)?;
-                let dst_state = self.0.states.get(src).unwrap().clone_new(dst.to_string())?;
-                self.0.states.insert(dst.to_string(), dst_state);
-                Ok::<(), Error>(())
-            })?;
-        }
         Ok(())
     }
 
     pub fn delete_state(&self, state_id: &str) -> Result<()> {
-        match self.0.state_ids.remove(state_id) {
+        match self.0.states.remove(state_id) {
             Some(_) => {
                 self.0.states.remove(state_id);
                 Ok(())
@@ -122,7 +136,7 @@ impl InferStates {
                     state_id.to_string(),
                     self.0.context.clone(),
                     self.0.model.clone(),
-                    self.0.max_state_size,
+                    self.0.state_size,
                 )
             })
             .clone()
@@ -130,6 +144,6 @@ impl InferStates {
 
     #[inline(always)]
     pub fn has_state(&self, state_id: &str) -> bool {
-        self.0.state_ids.contains(state_id)
+        self.0.states.contains_key(state_id)
     }
 }

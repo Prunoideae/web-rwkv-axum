@@ -29,7 +29,7 @@ max_concurrency = 8
 # prompt at the cost of resource consumption.
 # If the chunk size is too large, performance might decrease
 # for some bandwith problem.
-max_chunk_count = 16
+max_chunk_count = 32
 # Preference for adapter. Can be HighPerformance or
 # LowPower. If omitted, adapter index will be used.
 preference = "HighPerformance"

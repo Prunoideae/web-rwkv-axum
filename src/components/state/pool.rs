@@ -1,7 +1,11 @@
-use std::sync::{Arc, RwLock};
+use std::{
+    num::NonZeroUsize,
+    sync::{Arc, RwLock},
+};
 
-use anyhow::{Error, Result};
 use itertools::Itertools;
+use lru::LruCache;
+use nohash_hasher::BuildNoHashHasher;
 use tokio::sync::{mpsc, oneshot};
 use web_rwkv::context::Context;
 
@@ -27,28 +31,25 @@ impl InferRequest {
         }
     }
 }
-
-type BatchSlots = Arc<RwLock<Vec<Option<InferState>>>>;
+type Cache = Arc<RwLock<LruCache<usize, InferState, BuildNoHashHasher<usize>>>>;
 
 struct Slots {
     tasks: usize,
     batch_lock: BatchRequest,
-    max_concurrent: usize,
+    max_concurrency: usize,
     token_slots: Vec<Vec<u16>>,
-    batch_slots: BatchSlots,
     callback_slots: Vec<Option<oneshot::Sender<Vec<f32>>>>,
     pool: Arc<AxumModelState>,
+    cache: Cache,
 }
 
 struct InnerPool {
-    max_concurrent: usize,
+    max_concurrency: usize,
     batch_size: usize,
     batch_lock: BatchRequest,
-    pool: Arc<AxumModelState>,
-    batch_slots: BatchSlots,
-    #[allow(dead_code)] // probably one day we will use it
-    context: Context,
     model: Arc<AxumModel>,
+    pool: Arc<AxumModelState>,
+    cache: Cache,
 }
 
 #[derive(Clone)]
@@ -56,20 +57,20 @@ pub struct InferPool(Arc<InnerPool>);
 
 impl Slots {
     pub fn new(
-        batch_slots: BatchSlots,
+        batch_size: usize,
         pool: Arc<AxumModelState>,
         lock: BatchRequest,
-        max_concurrent: usize,
+        max_concurrency: usize,
+        cache: Cache,
     ) -> Self {
-        let batch_size = batch_slots.read().unwrap().len();
         Self {
             tasks: 0,
+            max_concurrency,
             token_slots: (0..batch_size).map(|_| Vec::new()).collect_vec(),
-            batch_slots,
             callback_slots: (0..batch_size).map(|_| None).collect_vec(),
-            pool,
             batch_lock: lock,
-            max_concurrent,
+            pool,
+            cache,
         }
     }
 
@@ -78,28 +79,14 @@ impl Slots {
         self.callback_slots.len() - self.tasks
     }
 
+    #[inline(always)]
     fn can_start_infer(&self) -> bool {
-        return self.tasks >= self.max_concurrent
+        return self.tasks >= self.max_concurrency
             || self.tasks >= self.batch_lock.get()
             || self.empty_slots() == 0;
     }
 
-    #[inline(always)]
-    fn swap(&mut self, index: usize, state: InferState) {
-        let mut writelock = self.batch_slots.write().unwrap();
-        if let Some(slot) = std::mem::replace(&mut writelock[index], Some(state)) {
-            slot.back_from(&self.pool, index).unwrap();
-        };
-        writelock[index]
-            .as_ref()
-            .unwrap()
-            .load_to(&self.pool, index)
-            .unwrap();
-    }
-
     /// Insert a request into the slot
-    ///
-    /// Must ensure that the slot is not full
     fn insert(&mut self, request: InferRequest) {
         let InferRequest {
             state,
@@ -115,29 +102,53 @@ impl Slots {
             .map(|(x, _)| x)
             .collect::<Vec<_>>();
 
-        let selected_slot = 'slot: {
-            let readlock = self.batch_slots.read().unwrap();
-            // Try to find an empty slot with a same name
-            for index in empty_slots.iter() {
-                if let Some(batch_state) = readlock[*index].as_ref() {
-                    if &state == batch_state {
-                        break 'slot *index;
-                    }
+        let selected_slot = {
+            let mut cache = self.cache.write().unwrap();
+            // Check if state is in the slot already
+            if let Some(index) = {
+                empty_slots
+                    .iter()
+                    .map(|x| cache.peek(x).map(|s| (x, s)))
+                    .flatten()
+                    .filter(|(_, s)| s.get_id() == state.get_id())
+                    .map(|(x, _)| *x)
+                    .next()
+            } {
+                cache.promote(&index);
+                index
+            } else if let Some(&index) =
+                { empty_slots.iter().filter(|x| !cache.contains(x)).next() }
+            {
+                // Find a unused slot
+                if let Some(state) = cache.put(index, state.clone()) {
+                    state.back_from(&self.pool, index);
+                };
+                state.load_to(&self.pool, index);
+                index
+            } else {
+                // Try to find the least used slot
+                if let Some(index) = {
+                    cache
+                        .iter()
+                        .rev()
+                        .filter(|(x, _)| empty_slots.contains(x))
+                        .next()
+                        .map(|(x, _)| *x)
+                } {
+                    if let Some(state) = cache.put(index, state.clone()) {
+                        state.back_from(&self.pool, index);
+                    };
+                    state.load_to(&self.pool, index);
+                    index
+                } else {
+                    unreachable!()
                 }
             }
-            // Try to find an empty slot that is not occupied by any state
-            for index in empty_slots.iter() {
-                if let None = readlock[*index] {
-                    break 'slot *index;
-                }
-            }
-            // Try to find the first empty slot
-            empty_slots[0]
         };
 
+        // Set tokens and sender
         self.token_slots[selected_slot] = tokens;
         self.callback_slots[selected_slot] = Some(callback);
-        self.swap(selected_slot, state);
         self.tasks += 1;
     }
 
@@ -146,7 +157,7 @@ impl Slots {
             sender.send(logits).unwrap();
             self.tasks -= 1;
         } else {
-            panic!("Sender is empty!")
+            unreachable!()
         }
     }
 
@@ -183,53 +194,45 @@ impl InferPool {
     pub fn new(
         context: Context,
         model: Arc<AxumModel>,
-        max_concurrent: usize,
+        max_concurrency: usize,
         batch_size: usize,
+        state_size: Option<usize>,
         batch_lock: BatchRequest,
-        max_state_size: Option<usize>,
     ) -> Self {
-        let slots = Arc::new(RwLock::new((0..batch_size).map(|_| None).collect_vec()));
         Self(Arc::new(InnerPool {
-            max_concurrent,
-            batch_lock,
+            max_concurrency,
             batch_size,
-            pool: Arc::new(AxumModelState::new_sized(
-                &context,
-                &model,
-                batch_size,
-                max_state_size,
-            )),
-            context,
-            model,
-            batch_slots: slots,
+            batch_lock,
+            model: model.clone(),
+            pool: Arc::new(AxumModelState::new_sized(&context, &model, batch_size, state_size)),
+            cache: Arc::new(RwLock::new(LruCache::with_hasher(
+                NonZeroUsize::new(batch_size).unwrap(),
+                BuildNoHashHasher::default(),
+            ))),
         }))
     }
 
-    pub fn sync(&self, state_id: &str) -> Result<()> {
-        for (index, state) in self
+    pub fn sync(&self, state_id: &str) {
+        if let Some((index, state)) = self
             .0
-            .batch_slots
+            .cache
             .read()
-            .map_err(|_| Error::msg("Lock is poisoned!"))?
+            .unwrap()
             .iter()
-            .enumerate()
+            .filter(|(_, state)| state.get_id() == state_id)
+            .next()
         {
-            if let Some(state) = state.as_ref() {
-                if state_id == state.get_id() {
-                    state.back_from(&self.0.pool, index)?;
-                    break;
-                }
-            }
+            state.back_from(&self.0.pool, *index)
         }
-        Ok(())
     }
 
     async fn infer_loop(&self, mut queue: mpsc::Receiver<Vec<InferRequest>>) {
         let mut slots = Slots::new(
-            self.0.batch_slots.clone(),
+            self.0.batch_size,
             self.0.pool.clone(),
             self.0.batch_lock.clone(),
-            self.0.max_concurrent,
+            self.0.max_concurrency,
+            self.0.cache.clone(),
         );
         let mut queue_buffer: Vec<InferRequest> = Vec::with_capacity(self.0.batch_size);
 
@@ -237,7 +240,6 @@ impl InferPool {
         // This has an assumption that the batch is empty. (just initialized/ finished all inference)
         while let Some(requests) = queue.recv().await {
             slots.load_or_queue(requests, &mut queue_buffer);
-
             // If there're more to come
             if !slots.can_start_infer() {
                 // Wait for next request to arrive in
@@ -253,7 +255,6 @@ impl InferPool {
             loop {
                 // Infer till at least 1 slot is done
                 slots.infer(&self.0.model);
-
                 // Release queued requests into the slots
                 while let Some(queued) = queue_buffer.pop() {
                     slots.insert(queued);
