@@ -54,7 +54,8 @@ async fn handle_command_text(
                     .lock()
                     .await
                     .send(Message::Text(
-                        serde_json::to_string(&CommandSuccess::new(command.echo_id, v, start)).unwrap(),
+                        serde_json::to_string(&CommandSuccess::new(command.echo_id, v, start))
+                            .unwrap(),
                     ))
                     .await
                     .ok();

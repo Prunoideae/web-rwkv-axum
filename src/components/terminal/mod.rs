@@ -9,7 +9,7 @@ use crate::{app::AppState, hashmap_ex};
 use self::types::Terminal;
 
 mod lengthed;
-mod types;
+pub mod types;
 mod until;
 
 #[derive(Debug, Deserialize)]
@@ -95,7 +95,7 @@ impl Terminals {
         Ok(())
     }
 
-    pub fn terminate(&self, id: &str, result: &str, token_count: usize) -> Result<bool> {
+    pub fn terminate(&self, id: &str, result: &Vec<u16>, token_count: usize) -> Result<bool> {
         if let Some(mut terminal) = self.get_terminal(id) {
             terminal.terminate(result, token_count)
         } else {

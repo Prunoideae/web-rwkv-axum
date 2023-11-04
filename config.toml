@@ -19,7 +19,7 @@ max_batch_count = 32
 # while loading with panic message like:
 # Buffer size 2214592512 is greater than the maximum buffer size (268435456)
 max_state_size = 2
-# Max concurrency means the maximum concurrent tasks that
+# Max concurrency means the maximum concurrent states that
 # can be inferred at the same time. Larger size reduces
 # response performance but increase GPU utilization to a
 # level. Default 8.
@@ -29,7 +29,7 @@ max_concurrency = 8
 # prompt at the cost of resource consumption.
 # If the chunk size is too large, performance might decrease
 # for some bandwith problem.
-max_chunk_count = 32
+max_chunk_count = 128
 # Preference for adapter. Can be HighPerformance or
 # LowPower. If omitted, adapter index will be used.
 preference = "HighPerformance"

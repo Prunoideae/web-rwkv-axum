@@ -1,5 +1,5 @@
 use anyhow::{Error, Result};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 use web_rwkv::context::Context;
 
@@ -7,13 +7,14 @@ use crate::components::model::{AxumBackedState, AxumModel, AxumModelState};
 
 struct InnerState {
     id: String,
-    state: Mutex<AxumBackedState>,
+    state: Arc<RwLock<AxumBackedState>>,
+    valid: Mutex<bool>,
 }
 
 #[derive(Clone)]
-pub struct InferState(Arc<InnerState>);
+pub struct NamedState(Arc<InnerState>);
 
-impl InferState {
+impl NamedState {
     pub fn new(
         id: String,
         context: Context,
@@ -22,16 +23,19 @@ impl InferState {
     ) -> Self {
         Self(Arc::new(InnerState {
             id,
-            state: Mutex::new(AxumBackedState::new(&context, &model, chunk_size)),
+            state: Arc::new(RwLock::new(AxumBackedState::new(
+                &context, &model, chunk_size,
+            ))),
+            valid: Mutex::new(true),
         }))
     }
 
     pub fn load_to(&self, pool: &AxumModelState, to: usize) {
-        self.0.state.lock().unwrap().load_to(pool, to).unwrap();
+        self.0.state.read().unwrap().load_to(pool, to).unwrap();
     }
 
     pub fn back_from(&self, pool: &AxumModelState, from: usize) {
-        *(self.0.state.lock().unwrap()) = AxumBackedState::back_from(pool, from).unwrap();
+        *(self.0.state.write().unwrap()) = AxumBackedState::back_from(pool, from).unwrap();
     }
 
     #[inline(always)]
@@ -39,21 +43,38 @@ impl InferState {
         &self.0.id
     }
 
+    pub fn is_valid(&self) -> bool {
+        *self.0.valid.lock().unwrap()
+    }
+
+    pub fn invalidate(&self) {
+        *self.0.valid.lock().unwrap() = false
+    }
+
     pub fn clone_new(&self, id: String) -> Result<Self> {
         Ok(Self(Arc::new(InnerState {
             id,
-            state: Mutex::new(
+            state: Arc::new(RwLock::new(
                 self.0
                     .state
-                    .lock()
+                    .read()
                     .map_err(|_| Error::msg("Lock poisoned!"))?
                     .clone(),
-            ),
+            )),
+            valid: Mutex::new(true),
+        })))
+    }
+
+    pub fn _clone_shallow(&self, id: String) -> Result<Self> {
+        Ok(Self(Arc::new(InnerState {
+            id,
+            state: self.0.state.clone(),
+            valid: Mutex::new(true),
         })))
     }
 }
 
-impl PartialEq for InferState {
+impl PartialEq for NamedState {
     fn eq(&self, other: &Self) -> bool {
         self.0.id == other.0.id
     }

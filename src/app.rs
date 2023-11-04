@@ -6,8 +6,8 @@ use web_rwkv::{context::Context, tokenizer::Tokenizer};
 
 use crate::{
     components::{
-        model::AxumModel, normalizer::Normalizers, permit::BatchRequest, sampler::Samplers,
-        softmax::Softmax, state::InferStates, terminal::Terminals, transformer::Transformers,
+        model::AxumModel, normalizer::Normalizers, sampler::Samplers, softmax::Softmax,
+        state::InferStates, terminal::Terminals, transformer::Transformers,
     },
     config::ModelConfig,
 };
@@ -23,7 +23,6 @@ pub struct InnerState {
     pub tokenizer: Arc<Tokenizer>,
     pub context: Context,
     pub model: Arc<AxumModel>,
-    pub batch_request: BatchRequest,
 }
 #[derive(Clone)]
 /// Global state holder of the entire app.
@@ -34,7 +33,6 @@ impl AppState {
         let context = config.model.create_context().await?;
         let model = Arc::new(config.model.load_model(&context).await?);
         println!("Model is loaded.");
-        let batch_request = BatchRequest::new();
 
         let softmax = Softmax::new(model.clone(), config.model.get_batch_size()).await;
         let (softmax_sender, _) = softmax.run().await;
@@ -49,39 +47,26 @@ impl AppState {
             tokenizer: Arc::new(config.tokenizer.load_tokenizer().await?),
             context: context.clone(),
             model: model.clone(),
-            states: InferStates::new(
-                config,
-                context.clone(),
-                model.clone(),
-                batch_request.clone(),
-            )
-            .await?,
-            batch_request: batch_request.clone(),
+            states: InferStates::new(config, context.clone(), model.clone()).await?,
         })))
     }
 
     pub async fn update_state(&self, id: Vec<String>, tokens: Vec<Vec<u16>>) -> Result<()> {
-        let permit = self.0.batch_request.request(id.len());
-        let _ = self.infer(id, tokens).await?;
-        drop(permit);
+        let flags = id.iter().map(|_| true).collect();
+        let mut ticket = self.0.states.create_ticket(id, flags).await?;
+        ticket.infer(tokens).await;
         Ok(())
     }
 
     pub fn tokenize(&self, input: &Vec<u8>) -> Result<Vec<u16>> {
         Ok(self.0.tokenizer.encode(&input)?)
     }
-
-    #[inline(always)]
-    pub async fn infer(
-        &self,
-        state_keys: Vec<String>,
-        token_vecs: Vec<Vec<u16>>,
-    ) -> Result<Vec<Vec<f32>>> {
-        self.0.states.infer(&state_keys, token_vecs).await
-    }
-
-    /// This must not fail, or the implementation is severly bugged
+    /// This must not fail, or the implementation is severely bugged
     pub async fn softmax(&self, logits: Vec<Vec<f32>>) -> Vec<Vec<f32>> {
         Softmax::softmax(logits, self.0.softmax_queue.clone()).await
+    }
+
+    pub fn softmax_blocking(&self, logits: Vec<Vec<f32>>) -> Vec<Vec<f32>> {
+        Softmax::blocking_softmax(logits, self.0.softmax_queue.clone())
     }
 }

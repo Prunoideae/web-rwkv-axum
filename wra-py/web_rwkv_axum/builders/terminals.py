@@ -21,4 +21,4 @@ class Until(TerminalBuilder):
         return "until"
 
     def payload(self) -> Any:
-        return {"until": self.until}
+        return self.until

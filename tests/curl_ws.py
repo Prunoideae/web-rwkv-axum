@@ -192,7 +192,7 @@ payload = {}
 
 tokens = 150
 
-prompt = "Instruction: Make up a war news in a fantasy world. Use ` to enclose the response.\n\nResponse:\nTitle: `"
+prompt = "Instruction: Make up a terrible news in a fantasy world. Use ` to enclose the response.\n\nResponse:\nTitle: `"
 
 async def main():
     async with connect(uri, ping_timeout=90) as ws:
@@ -220,7 +220,7 @@ async def main():
 
         elapsed = 0
         inferred = 0
-        output = result["value"]
+        output = result["result"]
         result = result["last_token"]
         while inferred < tokens:
             data = {
@@ -241,7 +241,7 @@ async def main():
                 return
             elapsed += result["duration_ms"]
             result = result["result"]
-            output += result["value"]
+            output += result["result"]
             inferred += result["inferred_tokens"]
             result = result["last_token"]
             break

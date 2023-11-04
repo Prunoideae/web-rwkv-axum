@@ -158,4 +158,17 @@ impl AxumModel {
         .map(|x| x.unwrap())
         .collect())
     }
+
+    pub fn infer(
+        &self,
+        tokens: &mut Vec<Vec<u16>>,
+        state: &AxumModelState,
+    ) -> Result<Vec<Option<Vec<f32>>>> {
+        loop {
+            let logits = self.run(tokens, state)?;
+            if logits.iter().any(|l| l.is_some()) {
+                break Ok(logits);
+            }
+        }
+    }
 }

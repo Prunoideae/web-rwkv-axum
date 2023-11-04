@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::{Ok, Result};
 use memmap2::Mmap;
@@ -12,9 +12,9 @@ use web_rwkv::{
     context::{Context, ContextBuilder, Instance},
     model::{
         loader::Loader,
-        LayerFlags, ModelBuilder,
+        ModelBuilder, ModelInfo,
         ModelVersion::{V4, V5},
-        Quantization,
+        Quant,
     },
     tokenizer::Tokenizer,
     wgpu::{Adapter, Backends},
@@ -81,7 +81,7 @@ pub struct ModelSpec {
     max_concurrency: Option<usize>,
     preference: Option<props::Preference>,
     adapter: Option<usize>,
-    quantization: Option<u64>,
+    quantization: Option<String>,
 }
 
 impl ModelSpec {
@@ -114,35 +114,55 @@ impl ModelSpec {
     pub async fn create_context(&self) -> Result<Context> {
         let adapter = self.select_adapter(&Instance::new()).await?;
         println!("{:?}", adapter.get_info());
-        let mut context = ContextBuilder::new(adapter).with_default_pipelines();
-        if self.quantization.is_some() {
-            println!("Using quantization.");
-            context = context.with_quant_pipelines();
-        }
+        let context = ContextBuilder::new(adapter).with_default_pipelines();
         Ok(context.build().await?)
+    }
+
+    fn parse_quant_string(quant: String, model_info: &ModelInfo) -> HashMap<usize, Quant> {
+        let mut quants = HashMap::new();
+
+        for layer in 0..model_info.num_layer {
+            quants.insert(layer, Quant::None);
+        }
+
+        if !quant.is_empty() {
+            for parts in quant.split(',') {
+                let mut parts = parts.split('-');
+                let layer = parts.next().unwrap().parse().unwrap();
+                let quant = match parts.next().unwrap() {
+                    "int8" => Quant::Int8,
+                    "nf4" => Quant::NFloat4,
+                    _ => Quant::None,
+                };
+                quants.insert(layer, quant);
+            }
+        }
+        quants
     }
 
     pub async fn load_model(&self, context: &Context) -> Result<AxumModel> {
         let file = File::open(&self.path).await?;
         let map = unsafe { Mmap::map(&file)? };
-        let quant = self
-            .quantization
-            .map(|bits| Quantization::Int8(LayerFlags::from_bits_retain(bits)))
-            .unwrap_or_default();
+        let info = Loader::info(&map)?;
 
-        Ok(match Loader::info(&map)?.version {
+        let quants =
+            ModelSpec::parse_quant_string(self.quantization.clone().unwrap_or_default(), &info);
+
+        Ok(match info.version {
             V4 => AxumModel::V4(
                 ModelBuilder::new(context, &map)
                     .with_token_chunk_size(self.get_chunk_size())
                     .with_head_chunk_size(8192)
-                    .with_quant(quant)
+                    .with_quant(quants)
+                    .with_turbo(true)
                     .build()?,
             ),
             V5 => AxumModel::V5(
                 ModelBuilder::new(context, &map)
                     .with_token_chunk_size(self.get_chunk_size())
                     .with_head_chunk_size(8192)
-                    .with_quant(quant)
+                    .with_quant(quants)
+                    .with_turbo(true)
                     .build()?,
             ),
         })

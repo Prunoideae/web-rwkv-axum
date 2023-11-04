@@ -2,9 +2,8 @@ use anyhow::{Error, Result};
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::{app::AppState, components::InferenceInterruption};
+use crate::{app::AppState, components::{InferenceInterruption, infer::tokens::to_tokens}};
 
-use super::helpers;
 
 #[derive(Debug, Deserialize)]
 struct TransformerArgs {
@@ -80,7 +79,7 @@ struct TransformerUpdate {
 pub async fn update_transformer(data: Option<Value>, state: AppState) -> Result<Value> {
     if let Some(data) = data {
         let TransformerUpdate { id, tokens } = serde_json::from_value(data)?;
-        let tokens = helpers::to_tokens(&state, tokens)?;
+        let tokens = to_tokens(&state, tokens)?;
         state
             .0
             .transformers

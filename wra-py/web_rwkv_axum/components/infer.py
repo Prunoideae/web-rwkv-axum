@@ -31,7 +31,8 @@ class InferResult:
     last_token: int
     result: str
     end_reason: str
-    token_count: int
+    inferred_token: int
+    prompt_token: int
 
     async def continue_(
         self,
@@ -56,7 +57,7 @@ class InferResult:
         self.last_token = resp.last_token
         self.end_reason = resp.end_reason
         self.result = resp.result
-        self.token_count = resp.token_count
+        self.inferred_token = resp.inferred_token
         return self
 
     async def copy(self) -> "InferResult":
@@ -67,7 +68,7 @@ class InferResult:
             last_token=self.last_token,
             result=self.result,
             end_reason=self.end_reason,
-            token_count=self.token_count,
+            inferred_token=self.inferred_token,
         )
 
 
@@ -82,8 +83,11 @@ class InferPipeline:
     async def infer(
         self,
         tokens: str | list[list[int | str]],
+        *,
         update_prompt: bool = True,
+        update_states: bool | list[bool] = True,
         reset_on_exhaustion: bool | ExhaustionReset = True,
+        timeout: float = 20,
     ):
         if isinstance(tokens, str):
             tokens = [[tokens] for _ in self.states]
@@ -101,7 +105,9 @@ class InferPipeline:
                     "sampler": self.sampler.sampler_id,
                     "terminal": self.terminal.terminal_id,
                     "reset_on_exhaustion": reset_on_exhaustion,
+                    "update_states": update_states,
                     "update_prompt": update_prompt,
+                    "timeout": int(timeout * 1000),
                 },
             )
         ).success():
@@ -109,9 +115,10 @@ class InferPipeline:
                 self,
                 ms_elapsed=resp.duration_ms,
                 last_token=resp.result["last_token"],
-                result=resp.result["value"],
+                result=resp.result["result"],
                 end_reason=resp.result["end_reason"],
-                token_count=resp.result["inferred_tokens"],
+                inferred_token=resp.result["inferred_tokens"],
+                prompt_token=resp.result["prompt_tokens"],
             )
         else:
             raise RuntimeError(resp.result)

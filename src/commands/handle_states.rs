@@ -2,7 +2,7 @@ use anyhow::{Error, Result};
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::{app::AppState, commands::helpers};
+use crate::{app::AppState, components::infer::tokens::to_token_vec};
 
 #[inline]
 pub async fn create_state(data: Option<Value>, state: AppState) -> Result<Value> {
@@ -69,7 +69,7 @@ struct StateUpdate {
 pub async fn update_state(data: Option<Value>, state: AppState) -> Result<Value> {
     if let Some(data) = data {
         let StateUpdate { states, tokens } = serde_json::from_value(data)?;
-        let tokens = helpers::to_token_vec(&state, tokens)?;
+        let tokens = to_token_vec(&state, tokens)?;
         state
             .update_state(states, tokens)
             .await

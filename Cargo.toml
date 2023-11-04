@@ -31,7 +31,6 @@ ordered-float = "3.9.1"
 qp-trie = "0.8.1"
 rand = "0.8.5"
 rayon = "1.7.0"
-rhai = {version = "1.15.1", features = ["serde", "serde_json"]}
 rustc-hash = "1.1.0"
 serde = "1.0.188"
 serde_json = "1.0.105"
