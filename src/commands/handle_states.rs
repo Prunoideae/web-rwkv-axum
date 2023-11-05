@@ -23,6 +23,7 @@ pub async fn create_state(data: Option<Value>, state: AppState) -> Result<Value>
 struct StateCopy {
     source: String,
     destination: String,
+    shallow: Option<bool>,
 }
 
 #[inline]
@@ -31,11 +32,13 @@ pub async fn copy_state(data: Option<Value>, state: AppState) -> Result<Value> {
         let StateCopy {
             source,
             destination,
+            shallow,
         } = serde_json::from_value(data)?;
+        let shallow = shallow.unwrap_or(false);
         state
             .0
             .states
-            .copy_state(&source, &destination)
+            .copy_state(&source, &destination, shallow)
             .map(|_| Value::Null)
     } else {
         Err(Error::msg(

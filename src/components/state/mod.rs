@@ -151,7 +151,7 @@ impl InferStates {
         Ok(())
     }
 
-    pub fn copy_state(&self, src: &str, dst: &str) -> Result<()> {
+    pub fn copy_state(&self, src: &str, dst: &str, shallow: bool) -> Result<()> {
         if self.0.states.contains_key(dst) {
             return Err(Error::msg("Destination state already exists!"));
         }
@@ -160,7 +160,12 @@ impl InferStates {
         }
         tokio::task::block_in_place(|| {
             self.0.pool.sync(src);
-            let dst_state = self.0.states.get(src).unwrap().clone_new(dst.to_string())?;
+            let src_state = self.0.states.get(src).unwrap();
+            let dst_state = if !shallow {
+                src_state.clone_new(dst.to_string())?
+            } else {
+                src_state.clone_shallow(dst.to_string())?
+            };
             self.0.states.insert(dst.to_string(), dst_state);
             Ok::<(), Error>(())
         })?;

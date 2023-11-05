@@ -143,8 +143,8 @@ commands = [
             "data": {
                 "type_id": "nucleus",
                 "params": {
-                    "temp": 1,
-                    "top_p": 0.3,
+                    "temp": 0.1,
+                    "top_p": 0.1,
                 },
             },
         },
@@ -156,8 +156,8 @@ commands = [
             "data": {
                 "type_id": "global_penalty",
                 "params": {
-                    "alpha_occurrence": 0.3,
-                    "alpha_presence": 0.3,
+                    "alpha_occurrence": 1.5,
+                    "alpha_presence": 0.6,
                 },
             },
         },
@@ -181,7 +181,7 @@ commands = [
             "data": {
                 "type_id": "lengthed",
                 "params": {
-                    "length": 16,
+                    "length": 64,
                 },
             },
         },
@@ -192,7 +192,30 @@ payload = {}
 
 tokens = 150
 
-prompt = "Instruction: Make up a terrible news in a fantasy world. Use ` to enclose the response.\n\nResponse:\nTitle: `"
+prompt = """Instruction: You are a professor in Bioinformatics who is rating students' assignments. Read the following assignment question:
+```text
+Write a Python script named seqlen_avg.py, which will print the average length of the genes in a
+FASTA file named sequence.fa.
+
+You should use BioPython to parse the FASTA file, points will be deducted if you read the FASTA file manually.
+```
+
+Rate the input assignment answer, you should include a rating and a comment.
+
+Input:
+```python
+>>> import newick
+>>> with open("CYTB.aln.fa.treefile","r") as f:
+...  tree = f.read()
+...  new_name = tree.replace("_sp","_sp_undetermined")
+...  with open("CYTB.aln.undetermined.treefile","w") as i:
+...   i.write(new_name)
+...
+```
+
+Response:
+The rating and comments are:
+"""
 
 async def main():
     async with connect(uri, ping_timeout=90) as ws:
@@ -245,7 +268,7 @@ async def main():
             inferred += result["inferred_tokens"]
             result = result["last_token"]
             break
-
+        print(prompt + output)
         print(await invoke_command(ws, "delete_state", state_name))
         await invoke_command(ws, "delete_sampler", sampler_name)
         await invoke_command(ws, "delete_transformer", transformer_name)

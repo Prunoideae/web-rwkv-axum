@@ -65,7 +65,7 @@ impl NamedState {
         })))
     }
 
-    pub fn _clone_shallow(&self, id: String) -> Result<Self> {
+    pub fn clone_shallow(&self, id: String) -> Result<Self> {
         Ok(Self(Arc::new(InnerState {
             id,
             state: self.0.state.clone(),
