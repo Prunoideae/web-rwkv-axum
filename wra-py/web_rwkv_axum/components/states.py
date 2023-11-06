@@ -1,7 +1,5 @@
 import asyncio
-from random import randint
 from typing import TYPE_CHECKING
-from dataclasses import dataclass
 
 from ..helper import get_random
 
@@ -23,8 +21,8 @@ class State:
     async def delete(self):
         return await self._states.delete_state(self)
 
-    async def copy(self, dst_id: str = None) -> "State":
-        return await self._states.copy_state(self, dst_id)
+    async def copy(self, dst_id: str = None, shallow: bool = False) -> "State":
+        return await self._states.copy_state(self, dst_id, shallow)
 
     async def update(self, tokens: str | int | list[str | int]):
         if isinstance(tokens, int):
@@ -37,13 +35,28 @@ class States:
         self._session = session
         self._states = set()
 
-    async def create_state(self, state_id: str = None) -> State:
+    async def create_state(self, state_id: str = None, dump_id: str = None) -> State:
         if state_id is None:
             state_id = get_random(self._states)
-        if (resp := await self._session.call("create_state", state_id)).success():
+        if (
+            resp := await self._session.call(
+                "create_state",
+                {
+                    "id": state_id,
+                    "dump_id": dump_id,
+                },
+            )
+        ).success():
             self._states.add(state_id)
             return State(state_id, self)
         else:
+            raise RuntimeError(resp.result)
+
+    async def dump_state(self, state: State, dump_id: str):
+        if not state.valid:
+            raise RuntimeError("Source state id does not exist!")
+
+        if not (resp := await self._session.call("dump_state", {"state_id": state.state_id, "dump_id": dump_id})).success():
             raise RuntimeError(resp.result)
 
     async def delete_state(self, state: State):
@@ -52,14 +65,23 @@ class States:
         else:
             self._states.remove(state.state_id)
 
-    async def copy_state(self, src: State, dst_id: str = None) -> State:
+    async def copy_state(self, src: State, dst_id: str = None, shallow: bool = False) -> State:
         if not src.valid:
             raise RuntimeError("Source state id does not exist!")
 
         if dst_id is None:
             dst_id = get_random(self._states)
 
-        if (resp := await self._session.call("copy_state", {"source": src.state_id, "destination": dst_id})).success():
+        if (
+            resp := await self._session.call(
+                "copy_state",
+                {
+                    "source": src.state_id,
+                    "destination": dst_id,
+                    "shallow": shallow,
+                },
+            )
+        ).success():
             self._states.add(dst_id)
             return State(dst_id, self)
         else:

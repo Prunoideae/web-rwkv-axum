@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Error, Result};
 use tokio::sync::{mpsc::Sender, oneshot};
 use web_rwkv::{context::Context, tokenizer::Tokenizer};
 
@@ -56,6 +56,22 @@ impl AppState {
         let mut ticket = self.0.states.create_ticket(id, flags).await?;
         ticket.infer(tokens).await;
         Ok(())
+    }
+
+    pub async fn dump_state(&self, id: String, dump_id: String) -> Result<()> {
+        self.0
+            .states
+            .get_state(&id)
+            .ok_or(Error::msg("State not found!"))?
+            .dump(self.0.config.axum.state_dump.join(dump_id))
+            .await
+    }
+
+    pub async fn load_state(&self, id: String, dump_id: String) -> Result<()> {
+        self.0
+            .states
+            .load_state(&id, self.0.config.axum.state_dump.join(dump_id))
+            .await
     }
 
     pub fn tokenize(&self, input: &Vec<u8>) -> Result<Vec<u16>> {

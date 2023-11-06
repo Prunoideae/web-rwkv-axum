@@ -4,19 +4,22 @@ use serde_json::Value;
 
 use crate::{app::AppState, components::infer::tokens::to_token_vec};
 
+#[derive(Debug, Deserialize)]
+struct StateCreate {
+    id: String,
+    dump_id: Option<String>,
+}
+
 #[inline]
 pub async fn create_state(data: Option<Value>, state: AppState) -> Result<Value> {
-    if let Some(data) = data {
-        state
-            .0
-            .states
-            .create_state(data.as_str().ok_or(Error::msg(
-                "data should be a string representing state id you want to create!",
-            ))?)
-            .map(|_| Value::Null)
-    } else {
-        Err(Error::msg("Field data is needed to specify state id!"))
-    }
+    let StateCreate { id, dump_id } = serde_json::from_value(
+        data.ok_or(Error::msg("Field data is needed to specify state id!"))?,
+    )?;
+    match dump_id {
+        Some(dump_id) => state.load_state(id, dump_id).await?,
+        None => state.0.states.create_state(id.as_str())?,
+    };
+    Ok(Value::Null)
 }
 
 #[derive(Debug, Deserialize)]
@@ -82,4 +85,18 @@ pub async fn update_state(data: Option<Value>, state: AppState) -> Result<Value>
             "Field data is needed to specify state id and tokens!",
         ))
     }
+}
+
+#[derive(Debug, Deserialize)]
+struct StateDump {
+    state_id: String,
+    dump_id: String,
+}
+
+#[inline]
+pub async fn dump_state(data: Option<Value>, state: AppState) -> Result<Value> {
+    let StateDump { state_id, dump_id } =
+        serde_json::from_value(data.ok_or(Error::msg("Field empty!"))?)?;
+    state.dump_state(state_id, dump_id).await?;
+    Ok(Value::Null)
 }

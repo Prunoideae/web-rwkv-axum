@@ -1,7 +1,7 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use anyhow::{Error, Result};
-use dashmap::DashMap;
+use dashmap::{mapref::one::Ref, DashMap};
 use futures_util::future::join_all;
 use tokio::sync::{mpsc, OwnedSemaphorePermit, Semaphore};
 use web_rwkv::context::Context;
@@ -16,6 +16,7 @@ use self::{
 use super::model::AxumModel;
 
 mod pool;
+mod serde;
 mod state;
 
 struct InnerStates {
@@ -151,6 +152,17 @@ impl InferStates {
         Ok(())
     }
 
+    pub async fn load_state(&self, state_id: &str, dump_path: PathBuf) -> Result<()> {
+        if self.0.states.contains_key(state_id) {
+            return Err(Error::msg("State already exists!"));
+        }
+        self.0.states.insert(
+            state_id.to_string(),
+            NamedState::new_from(state_id.to_string(), dump_path).await?,
+        );
+        Ok(())
+    }
+
     pub fn copy_state(&self, src: &str, dst: &str, shallow: bool) -> Result<()> {
         if self.0.states.contains_key(dst) {
             return Err(Error::msg("Destination state already exists!"));
@@ -185,5 +197,9 @@ impl InferStates {
     #[inline(always)]
     pub fn has_state(&self, state_id: &str) -> bool {
         self.0.states.contains_key(state_id)
+    }
+
+    pub fn get_state<'a>(&'a self, state_id: &str) -> Option<Ref<'a, String, NamedState>> {
+        self.0.states.get(state_id)
     }
 }

@@ -6,7 +6,7 @@ use tokio::io::*;
 use web_rwkv::model::{v4, v5};
 use web_rwkv::tensor::shape::Shape;
 
-use super::model::AxumBackedState;
+use crate::components::model::AxumBackedState;
 
 #[derive(Deserialize, Serialize)]
 struct StateV4 {
@@ -64,8 +64,8 @@ impl AxumBackedStateRepr {
     }
 }
 
-pub async fn dump_state(state: AxumBackedState, path: PathBuf) -> Result<()> {
-    let repr = AxumBackedStateRepr::new(&state);
+pub async fn dump_state(state: &AxumBackedState, path: PathBuf) -> Result<()> {
+    let repr = AxumBackedStateRepr::new(state);
     let mut file = File::create(path).await?;
     file.write(&bson::to_vec(&repr)?).await?;
     Ok(())

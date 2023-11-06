@@ -187,7 +187,13 @@ impl TokenizerSpec {
 }
 
 #[derive(Debug, Deserialize, Clone)]
+pub struct AxumSpec {
+    pub state_dump: PathBuf,
+}
+
+#[derive(Debug, Deserialize, Clone)]
 pub struct ModelConfig {
     pub model: ModelSpec,
     pub tokenizer: TokenizerSpec,
+    pub axum: AxumSpec,
 }

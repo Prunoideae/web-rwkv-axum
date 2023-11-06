@@ -22,6 +22,8 @@ pub trait Normalizer: Send + Sync + Debug {
     ///
     /// Returns a `Vec<Vec<f32>>` where at least first `Vec<f32>` is normalized. A normalized
     /// logits will have a sum of 1, making it safe for samplers to sample.
+    /// 
+    /// You can call state.softmax_blocking to issue a softmax to model loop.
     ///
     /// A default implementation will have all logits normalized, but depending on the use case,
     /// some logits can be left out since the sample process only need to sample 1 logits and

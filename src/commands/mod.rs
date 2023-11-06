@@ -31,6 +31,7 @@ impl TextCommand {
                 handle_states::copy_state,
                 handle_states::update_state,
                 handle_states::delete_state,
+                handle_states::dump_state,
                 //Transformers
                 handle_transformers::create_transformer,
                 handle_transformers::copy_transformer,

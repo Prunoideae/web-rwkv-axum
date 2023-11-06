@@ -2,7 +2,6 @@ use anyhow::Error;
 
 pub mod infer;
 pub mod model;
-pub mod serde;
 pub mod normalizer;
 pub mod sampler;
 pub mod softmax;

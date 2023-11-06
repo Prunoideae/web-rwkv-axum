@@ -2,8 +2,7 @@
 # It specifies what model to use, what token table to use, etc.
 
 [axum]
-
-[generation]
+state_dump = "states"
 
 [model]
 # Path to the model file
