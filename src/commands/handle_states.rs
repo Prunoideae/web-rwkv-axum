@@ -59,6 +59,7 @@ pub async fn delete_state(data: Option<Value>, state: AppState) -> Result<Value>
             .delete_state(data.as_str().ok_or(Error::msg(
                 "data should be a string representing state id you want to delete!",
             ))?)
+            .await
             .map(|_| Value::Null)
     } else {
         Err(Error::msg("Field data is needed to specify state id!"))

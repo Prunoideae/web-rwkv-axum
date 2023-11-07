@@ -184,10 +184,10 @@ impl InferStates {
         Ok(())
     }
 
-    pub fn delete_state(&self, state_id: &str) -> Result<()> {
+    pub async fn delete_state(&self, state_id: &str) -> Result<()> {
         match self.0.states.remove(state_id) {
             Some((_, state)) => {
-                state.invalidate();
+                state.invalidate_async().await;
                 Ok(())
             }
             None => Err(Error::msg("State ID does not exist!")),
