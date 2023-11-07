@@ -32,6 +32,11 @@ This command requests an inference with specified tokens, `states`, `transformer
             // sampled and used in subsequent generation, so only 1
             // sampler can be specified.
             "sampler": "sampler_id",
+            // The normalizer used by the pipeline. Normalizer is used
+            // to give out a token probs distribution from one or more
+            // logits distributions. The field can be omitted to use
+            // softmax on first logits.
+            "normalizer": "normalizer_id",
             // The terminal ID specified to control the terminal
             // condition of this pipeline.
             "terminal": "terminal_id",
@@ -39,10 +44,13 @@ This command requests an inference with specified tokens, `states`, `transformer
             // transformers/sampler? This only affects to the prompt
             // input, tokens generated in auto-regressive loop will
             // always update the pipeline.
-            "update_prompt": False,
+            "update_prompt": false,
             // Should the pipeline resets transformers/sampler when
             // any of them is exhausted?
-            "reset_on_exhaustion": True,
+            "reset_on_exhaustion": true,
+            // Should the pipeline updates the state(s) when infer is
+            // finished and state is unloaded/synced?
+            "update_states": true | [true, false, ...]
     }
 }
 ```
