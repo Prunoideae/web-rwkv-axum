@@ -2,7 +2,7 @@
 
 ## General Specification
 
-`web-rwkv-axum` uses `Websocket` as the protocol, and it is fully asynced, which means that a client and send out any amount of requests at anytime without blocking, and the server will respond to all requests *without blocking* and *without guarantee of order*.
+`web-rwkv-axum` uses `Websocket` as the protocol, and it is fully asynced, which means that a client can send out any amount of requests at anytime without blocking, and the server will respond to all requests *without blocking* and *without guarantee of order*.
 
 To ensure that the server responses can match the client requests, all WS API implemented in `web-rwkv-axum` will follow the structure below:
 
