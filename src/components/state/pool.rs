@@ -6,7 +6,7 @@ use std::{
 use itertools::Itertools;
 use lru::LruCache;
 use nohash_hasher::BuildNoHashHasher;
-use tokio::sync::mpsc;
+use tokio::{sync::mpsc, task};
 use web_rwkv::context::Context;
 
 use crate::components::model::{AxumModel, AxumModelState};
@@ -271,15 +271,17 @@ impl InferPool {
         }
     }
 
-    async fn infer_loop(&self, mut queue: mpsc::Receiver<Vec<InferRequest>>) {
+    fn infer_loop(&self, mut queue: mpsc::Receiver<Vec<InferRequest>>) {
         let mut slots = Slots::new(self.0.batch_size, self.0.pool.clone(), self.0.cache.clone());
 
         // When something arrives in the channel.
         // This has an assumption that the batch is empty.
-        while let Some(requests) = queue.recv().await {
+        while let Some(requests) = queue.blocking_recv() {
             // Clear up the slots to remove done requests (sender closed)
             slots.clear();
-            requests.into_iter().for_each(|f| slots.insert(f));
+            requests
+                .into_iter()
+                .for_each(|request| slots.insert(request));
             loop {
                 // Infer till at least 1 slot is done, this blocks on all
                 // active infer requests to wait for token input from all
@@ -294,7 +296,9 @@ impl InferPool {
                 // a semaphore elsewhere
                 slots.clear();
                 while let Ok(requests) = queue.try_recv() {
-                    requests.into_iter().for_each(|f| slots.insert(f));
+                    requests
+                        .into_iter()
+                        .for_each(|request| slots.insert(request));
                 }
                 // Break if everything is done so we continue waiting
                 if slots.all_clear() {
@@ -307,8 +311,8 @@ impl InferPool {
     pub async fn start_loop(&self) -> mpsc::Sender<Vec<InferRequest>> {
         let (sender, receiver) = mpsc::channel(self.0.batch_size);
         let looped = self.clone();
-        tokio::spawn(async move {
-            looped.infer_loop(receiver).await;
+        task::spawn_blocking(move || {
+            looped.infer_loop(receiver);
         });
         sender
     }
