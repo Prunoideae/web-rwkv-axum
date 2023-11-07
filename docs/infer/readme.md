@@ -2,13 +2,13 @@
 
 ## Inference API
 
-So inference is here. `web-rwkv-axum`'s inference is more like something you'd expect from a normal infer loop, you have states, transformers, samplers etc.
+So inference is here. `web-rwkv-axum`'s inference is more like something you'd expect from a normal infer loop: you have states, transformers, samplers etc.
 
 To ensure the efficiency of inference and reduce the payload when inferring, `web-rwkv-axum` lets you to construct needed components via other APIs, and finally assemble them into an infer pipeline which should suit your need in most of the cases.
 
-So, in an infer request, `web-rwkv-axum` will do as the following:
+So, in an infer request, `web-rwkv-axum` will do the following:
 
-1. Exams the params to ensure things are correctly assembled.
+1. Examine the params to ensure things are correctly assembled.
 2. Start the infer loop.
 3. Update the `logits transformers`/`sampler` specified by the request with the prompt.
 4. If any of them is exhausted, response with error since infer will be impossible to start.
@@ -18,7 +18,7 @@ So, in an infer request, `web-rwkv-axum` will do as the following:
 8. If any of them is exhausted, response with content currently generated.
 9. Pass the token to step `5` until inference is ended by `terminal` or `exhaustion`.
 
-It might sounds scary, so a workflow diagram is here:
+It might sound scary, so a workflow diagram is here:
 
 ![image](workflow.png)
 
@@ -28,6 +28,6 @@ An inference request can return even if you might have some more things to gener
 
 Almost every component in `web-rwkv-axum`, including `state`, `sampler`, `transformer`, etc., are stateful. This means that they will **not** lose their internal states even if the infer request is done, so they retain their status between different inference requests until manual reset, or pipeline resets sampler/transformers automatically when they're exhausted.
 
-So, if you use the returned `last_token` as the prompt with the same pipeline setup, the inference will continue until next terminal or exhaustion is met.
+So, if you use the returned `last_token` as the prompt with the same pipeline setup, the inference will continue with previous context until next terminal or exhaustion is met.
 
-Either to continue or stop is up to the client side, the client should understand if it should generate more tokens by sending out another inference requests with the same or different components.
+Either to continue or stop is up to the client side. If the client wants to generate more tokens, it should send out another inference requests with the same or different components.
