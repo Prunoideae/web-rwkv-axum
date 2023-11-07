@@ -1,273 +1,304 @@
-use std::sync::{Arc, RwLock};
-
-use anyhow::{Error, Result};
-use itertools::Itertools;
-use tokio::sync::{mpsc, oneshot};
-use web_rwkv::context::Context;
-
-use crate::components::{
-    model::{TypelessModelState, TypelessModel},
-    permit::BatchRequest,
+use std::{
+    num::NonZeroUsize,
+    sync::{Arc, RwLock},
 };
 
-use super::state::InferState;
+use itertools::Itertools;
+use lru::LruCache;
+use nohash_hasher::BuildNoHashHasher;
+use tokio::sync::mpsc;
+use web_rwkv::context::Context;
 
+use crate::components::model::{AxumModel, AxumModelState};
+
+use super::state::NamedState;
+
+/// Represents a *continuous* infer request.
+///
+/// A continuous infer request will have to send tokens sequentially
+/// without much interruption between each send. The infer loop will
+/// block for each active infer request to wait for their tokens to
+/// arrive, so the infer request must feed sampled tokens quickly back
+/// to the infer loop.
+///
+/// An active infer request will prevent other states to enter a same
+/// slot to reduce copying and waiting to mininum. An infer request
+/// is considered inactive when the `callback` sender is closed.
+///
+/// The state will not be updated instantly when the request ends. It
+/// is possible for another request from client side enters before
+/// current request state is swapped out. So the state will not be
+/// synced unless explicitly called or swapped out and have update_state
+/// being true.
 pub struct InferRequest {
-    state: InferState,
-    tokens: Vec<u16>,
-    callback: oneshot::Sender<Vec<f32>>,
+    state: NamedState,
+    tokens: mpsc::Receiver<Vec<u16>>,
+    callback: mpsc::Sender<Vec<f32>>,
+    update_state: bool,
+}
+
+struct InferIO {
+    tokens: mpsc::Receiver<Vec<u16>>,
+    callback: mpsc::Sender<Vec<f32>>,
+}
+
+#[derive(Clone)]
+struct InferState {
+    state: NamedState,
+    update_state: bool,
 }
 
 impl InferRequest {
-    pub fn new(state: InferState, tokens: Vec<u16>, callback: oneshot::Sender<Vec<f32>>) -> Self {
+    pub fn new(
+        state: NamedState,
+        tokens: mpsc::Receiver<Vec<u16>>,
+        callback: mpsc::Sender<Vec<f32>>,
+        update_state: bool,
+    ) -> Self {
         Self {
             state,
             tokens,
             callback,
+            update_state,
+        }
+    }
+
+    fn split(self) -> (InferIO, InferState) {
+        (
+            InferIO {
+                tokens: self.tokens,
+                callback: self.callback,
+            },
+            InferState {
+                state: self.state,
+                update_state: self.update_state,
+            },
+        )
+    }
+}
+
+impl InferState {
+    fn get_id<'a>(&'a self) -> &'a String {
+        self.state.get_id()
+    }
+}
+
+type Cache = Arc<RwLock<LruCache<usize, InferState, BuildNoHashHasher<usize>>>>;
+
+struct Slots {
+    ios: Vec<Option<InferIO>>,
+    tokens_cache: Vec<Vec<u16>>,
+    pool: Arc<AxumModelState>,
+    cache: Cache,
+}
+
+impl Slots {
+    pub fn new(batch_size: usize, pool: Arc<AxumModelState>, cache: Cache) -> Self {
+        Self {
+            ios: (0..batch_size).map(|_| None).collect_vec(),
+            tokens_cache: (0..batch_size).map(|_| Vec::new()).collect_vec(),
+            pool,
+            cache,
+        }
+    }
+
+    fn insert(&mut self, request: InferRequest) {
+        let (io, state) = request.split();
+
+        let empty_slots = self
+            .ios
+            .iter()
+            .enumerate()
+            .filter(|(_, x)| x.is_none())
+            .map(|(x, _)| x)
+            .collect_vec();
+
+        let selected_slot = {
+            let mut cache = self.cache.write().unwrap();
+            // Check if the state is in slot already
+            if let Some(index) = empty_slots
+                .iter()
+                .map(|x| cache.peek(x).map(|s| (x, s)))
+                .flatten()
+                .filter(|(_, s)| s.state == state.state)
+                .map(|(x, _)| *x)
+                .next()
+            {
+                cache.promote(&index);
+                index
+            } else if let Some(&index) = empty_slots
+                .iter()
+                //Find an empty slot and load the state
+                .filter(|x| !cache.contains(x))
+                .next()
+            {
+                if let Some(state) = cache.put(index, state.clone()) {
+                    if state.update_state && state.state.is_valid() {
+                        state.state.back_from(&self.pool, index);
+                    }
+                }
+                state.state.load_to(&self.pool, index);
+                index
+            } else if let Some(index) = cache
+                .iter()
+                // Find the least used slot
+                .rev()
+                .filter(|(x, _)| empty_slots.contains(x))
+                .next()
+                .map(|(x, _)| *x)
+            {
+                if let Some(state) = cache.put(index, state.clone()) {
+                    if state.update_state && state.state.is_valid() {
+                        state.state.back_from(&self.pool, index);
+                    }
+                };
+                state.state.load_to(&self.pool, index);
+                index
+            } else {
+                unreachable!()
+            }
+        };
+
+        // Set io
+        self.ios[selected_slot] = Some(io);
+    }
+
+    fn infer(&mut self, model: &AxumModel) {
+        // Try to get tokens from infer loop
+        for (tokens, io) in self.tokens_cache.iter_mut().zip(self.ios.iter_mut()) {
+            if let Some(io) = io {
+                if let Some(incoming_tokens) = {
+                    if tokens.is_empty() {
+                        // If no token is in cache (but it has an active ticket)
+                        // we block until token arrives.
+                        //
+                        // This assumes that pipeline loop time << infer time, so
+                        // blocking here makes the infer more batched.
+                        io.tokens.blocking_recv()
+                    } else {
+                        // We also peek into the tokens.
+                        io.tokens.try_recv().ok()
+                    }
+                } {
+                    tokens.extend(incoming_tokens);
+                }
+            } else if !tokens.is_empty() {
+                // Clear up tokens in case of accidental shutdown.
+                tokens.clear();
+            }
+        }
+
+        // Ensure that we still have something to send
+        if self.tokens_cache.iter().all(|x| x.is_empty()) {
+            return;
+        }
+        for (index, logits) in model
+            .infer(&mut self.tokens_cache, &self.pool)
+            .unwrap()
+            .into_iter()
+            .enumerate()
+        {
+            if let Some(logits) = logits {
+                self.ios[index]
+                    .as_mut()
+                    .unwrap()
+                    .callback
+                    // We don't care if it's disconnected already
+                    .try_send(logits)
+                    .ok();
+            }
+        }
+    }
+
+    /// Is there no active ticket in the infer loop?
+    fn all_clear(&self) -> bool {
+        self.ios.iter().all(|x| x.is_none())
+    }
+
+    /// Remove invalid tickets where IOs are closed.
+    fn clear(&mut self) {
+        for io in self.ios.iter_mut() {
+            // If the sender is dropped, then the ticket is no longer valid.
+            if io.as_ref().is_some_and(|io| io.callback.is_closed()) {
+                *io = None;
+            }
         }
     }
 }
 
-type BatchSlots = Arc<RwLock<Vec<Option<InferState>>>>;
-
-struct Slots {
-    tasks: usize,
-    batch_lock: BatchRequest,
-    max_concurrent: usize,
-    token_slots: Vec<Vec<u16>>,
-    batch_slots: BatchSlots,
-    callback_slots: Vec<Option<oneshot::Sender<Vec<f32>>>>,
-    pool: Arc<TypelessModelState>,
-}
-
 struct InnerPool {
-    max_concurrent: usize,
+    pool: Arc<AxumModelState>,
+    model: Arc<AxumModel>,
+    cache: Cache,
     batch_size: usize,
-    batch_lock: BatchRequest,
-    pool: Arc<TypelessModelState>,
-    batch_slots: BatchSlots,
-    #[allow(dead_code)] // probably one day we will use it
-    context: Context,
-    model: Arc<TypelessModel>,
 }
 
 #[derive(Clone)]
 pub struct InferPool(Arc<InnerPool>);
 
-impl Slots {
-    pub fn new(
-        batch_slots: BatchSlots,
-        pool: Arc<TypelessModelState>,
-        lock: BatchRequest,
-        max_concurrent: usize,
-    ) -> Self {
-        let batch_size = batch_slots.read().unwrap().len();
-        Self {
-            tasks: 0,
-            token_slots: (0..batch_size).map(|_| Vec::new()).collect_vec(),
-            batch_slots,
-            callback_slots: (0..batch_size).map(|_| None).collect_vec(),
-            pool,
-            batch_lock: lock,
-            max_concurrent,
-        }
-    }
-
-    #[inline(always)]
-    fn empty_slots(&self) -> usize {
-        self.callback_slots.len() - self.tasks
-    }
-
-    fn can_start_infer(&self) -> bool {
-        return self.tasks >= self.max_concurrent
-            || self.tasks >= self.batch_lock.get()
-            || self.empty_slots() == 0;
-    }
-
-    #[inline(always)]
-    fn swap(&mut self, index: usize, state: InferState) {
-        let mut writelock = self.batch_slots.write().unwrap();
-        if let Some(slot) = std::mem::replace(&mut writelock[index], Some(state)) {
-            slot.back_from(&self.pool, index).unwrap();
-        };
-        writelock[index]
-            .as_ref()
-            .unwrap()
-            .load_to(&self.pool, index)
-            .unwrap();
-    }
-
-    /// Insert a request into the slot
-    ///
-    /// Must ensure that the slot is not full
-    fn insert(&mut self, request: InferRequest) {
-        let InferRequest {
-            state,
-            tokens,
-            callback,
-        } = request;
-
-        let empty_slots = self
-            .callback_slots
-            .iter()
-            .enumerate()
-            .filter(|(_, x)| x.is_none())
-            .map(|(x, _)| x)
-            .collect::<Vec<_>>();
-
-        let selected_slot = 'slot: {
-            let readlock = self.batch_slots.read().unwrap();
-            // Try to find an empty slot with a same name
-            for index in empty_slots.iter() {
-                if let Some(batch_state) = readlock[*index].as_ref() {
-                    if &state == batch_state {
-                        break 'slot *index;
-                    }
-                }
-            }
-            // Try to find an empty slot that is not occupied by any state
-            for index in empty_slots.iter() {
-                if let None = readlock[*index] {
-                    break 'slot *index;
-                }
-            }
-            // Try to find the first empty slot
-            empty_slots[0]
-        };
-
-        self.token_slots[selected_slot] = tokens;
-        self.callback_slots[selected_slot] = Some(callback);
-        self.swap(selected_slot, state);
-        self.tasks += 1;
-    }
-
-    fn finish(&mut self, index: usize, logits: Vec<f32>) {
-        if let Some(sender) = std::mem::replace(&mut self.callback_slots[index], None) {
-            sender.send(logits).unwrap();
-            self.tasks -= 1;
-        } else {
-            panic!("Sender is empty!")
-        }
-    }
-
-    fn infer(&mut self, model: &TypelessModel) {
-        let logits = loop {
-            let logits_internal = model.run(&mut self.token_slots, &self.pool).unwrap();
-            if logits_internal.iter().any(|l| l.is_some()) {
-                break logits_internal;
-            }
-        };
-
-        for (index, logits) in logits.into_iter().enumerate() {
-            if logits.is_some() {
-                self.finish(index, logits.unwrap())
-            }
-        }
-    }
-
-    fn load_or_queue(&mut self, mut requests: Vec<InferRequest>, queue: &mut Vec<InferRequest>) {
-        for _ in 0..self.empty_slots() {
-            if let Some(request) = requests.pop() {
-                if !self.can_start_infer() {
-                    self.insert(request);
-                    continue;
-                }
-            }
-            break;
-        }
-        queue.extend(requests);
-    }
-}
-
 impl InferPool {
     pub fn new(
         context: Context,
-        model: Arc<TypelessModel>,
-        max_concurrent: usize,
+        model: Arc<AxumModel>,
         batch_size: usize,
-        batch_lock: BatchRequest,
+        state_size: Option<usize>,
     ) -> Self {
-        let slots = Arc::new(RwLock::new((0..batch_size).map(|_| None).collect_vec()));
+        let pool = Arc::new(AxumModelState::new_sized(
+            &context, &model, batch_size, state_size,
+        ));
         Self(Arc::new(InnerPool {
-            max_concurrent,
-            batch_lock,
-            batch_size,
-            pool: Arc::new(TypelessModelState::new(&context, &model, batch_size)),
-            context,
+            pool,
             model,
-            batch_slots: slots,
+            cache: Arc::new(RwLock::new(LruCache::with_hasher(
+                NonZeroUsize::new(batch_size).unwrap(),
+                BuildNoHashHasher::default(),
+            ))),
+            batch_size,
         }))
     }
 
-    pub fn sync(&self, state_id: &str) -> Result<()> {
-        for (index, state) in self
+    pub fn sync(&self, state_id: &str) {
+        if let Some((index, state)) = self
             .0
-            .batch_slots
+            .cache
             .read()
-            .map_err(|_| Error::msg("Lock is poisoned!"))?
+            .unwrap()
             .iter()
-            .enumerate()
+            .filter(|(_, state)| state.get_id() == state_id && state.update_state)
+            .next()
         {
-            if let Some(state) = state.as_ref() {
-                if state_id == state.get_id() {
-                    state.back_from(&self.0.pool, index)?;
-                    break;
-                }
-            }
+            state.state.back_from(&self.0.pool, *index);
         }
-        Ok(())
     }
 
     async fn infer_loop(&self, mut queue: mpsc::Receiver<Vec<InferRequest>>) {
-        let mut slots = Slots::new(
-            self.0.batch_slots.clone(),
-            self.0.pool.clone(),
-            self.0.batch_lock.clone(),
-            self.0.max_concurrent,
-        );
-        let mut queue_buffer: Vec<InferRequest> = Vec::with_capacity(self.0.batch_size);
+        let mut slots = Slots::new(self.0.batch_size, self.0.pool.clone(), self.0.cache.clone());
 
         // When something arrives in the channel.
-        // This has an assumption that the batch is empty. (just initialized/ finished all inference)
+        // This has an assumption that the batch is empty.
         while let Some(requests) = queue.recv().await {
-            slots.load_or_queue(requests, &mut queue_buffer);
-
-            // If there're more to come
-            if !slots.can_start_infer() {
-                // Wait for next request to arrive in
-                while let Some(requests) = queue.recv().await {
-                    slots.load_or_queue(requests, &mut queue_buffer);
-                    // Since it's ready, break the waiting
-                    if slots.can_start_infer() {
-                        break;
-                    }
-                }
-            }
-
+            // Clear up the slots to remove done requests (sender closed)
+            slots.clear();
+            requests.into_iter().for_each(|f| slots.insert(f));
             loop {
-                // Infer till at least 1 slot is done
-                slots.infer(&self.0.model);
-
-                // Release queued requests into the slots
-                while let Some(queued) = queue_buffer.pop() {
-                    slots.insert(queued);
-                    if slots.can_start_infer() {
-                        break;
-                    }
+                // Infer till at least 1 slot is done, this blocks on all
+                // active infer requests to wait for token input from all
+                // requests
+                //
+                // This is block_in_place so the worker thread can be swapped
+                // out to do something more meaningful, probably
+                tokio::task::block_in_place(|| {
+                    slots.infer(&self.0.model);
+                });
+                // Try to receive more requests, note this is guarded by
+                // a semaphore elsewhere
+                slots.clear();
+                while let Ok(requests) = queue.try_recv() {
+                    requests.into_iter().for_each(|f| slots.insert(f));
                 }
-
-                // If there're empty slot, try to load from receiver
-                if !slots.can_start_infer() {
-                    while let Ok(requests) = queue.try_recv() {
-                        slots.load_or_queue(requests, &mut queue_buffer);
-                        if slots.can_start_infer() {
-                            break;
-                        }
-                    }
-                    // No requests anymore, release the lock
-                    if slots.tasks == 0 {
-                        break;
-                    }
+                // Break if everything is done so we continue waiting
+                if slots.all_clear() {
+                    break;
                 }
             }
         }

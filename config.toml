@@ -2,19 +2,23 @@
 # It specifies what model to use, what token table to use, etc.
 
 [axum]
-
-[generation]
+state_dump = "states"
 
 [model]
 # Path to the model file
 # Must be a safetensor instead of pth.
-path = "assets/RWKV-4-World-7B-v1-20230626-ctx4096.st"
+path = "assets/RWKV-5-World-7B-v2-OnlyForTest_22%_trained-20231022-ctx4096.st"
 # Max batch count means maximum size of model state used
 # as pool for batch inference. Larger size reduce the need
 # of buffer swapping at the cost of increased GPU memory
 # usage. Default 32.
 max_batch_count = 32
-# Max concurrency means the maximum concurrent tasks that
+# Max state size means a relative size of model states
+# initialized by web-rwkv. Decrease this if the model crash
+# while loading with panic message like:
+# Buffer size 2214592512 is greater than the maximum buffer size (268435456)
+max_state_size = 2
+# Max concurrency means the maximum concurrent states that
 # can be inferred at the same time. Larger size reduces
 # response performance but increase GPU utilization to a
 # level. Default 8.
@@ -22,7 +26,9 @@ max_concurrency = 8
 # Max chunk count means how many tokens should a chunk
 # be at max. Larger chunks increase infer speed for long
 # prompt at the cost of resource consumption.
-max_chunk_count = 256
+# If the chunk size is too large, performance might decrease
+# for some bandwith problem.
+max_chunk_count = 128
 # Preference for adapter. Can be HighPerformance or
 # LowPower. If omitted, adapter index will be used.
 preference = "HighPerformance"

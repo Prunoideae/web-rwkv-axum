@@ -1,3 +1,4 @@
+import asyncio
 from typing import TYPE_CHECKING, Any
 from ..helper import get_random
 
@@ -28,7 +29,7 @@ class Terminal:
     def valid(self) -> bool:
         return self.terminal_id in self._terminals._terminals
 
-    async def copy(self, dst_id: str) -> "Terminal":
+    async def copy(self, dst_id: str = None) -> "Terminal":
         return await self._terminals.copy_terminal(self, dst_id)
 
     async def update(self, tokens: int | str | list[int | str]):
@@ -92,3 +93,6 @@ class Terminals:
             raise RuntimeError("Terminal does not exist!")
 
         await self._session.call("reset_terminal", terminal.terminal_id)
+
+    async def close(self):
+        await asyncio.gather(*(self._session.call("delete_terminal", terminal) for terminal in self._terminals))

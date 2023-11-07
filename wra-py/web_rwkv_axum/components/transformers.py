@@ -1,3 +1,4 @@
+import asyncio
 from typing import TYPE_CHECKING, Any
 from random import randint
 from ..helper import get_random
@@ -29,7 +30,7 @@ class Transformer:
     def valid(self) -> bool:
         return self.transformer_id in self._transformers._transformers
 
-    async def copy(self, dst_id: str) -> "Transformer":
+    async def copy(self, dst_id: str = None) -> "Transformer":
         return await self._transformers.copy_transformer(self, dst_id)
 
     async def update(self, tokens: int | str | list[int | str]):
@@ -93,3 +94,6 @@ class Transformers:
             raise RuntimeError("Transformer does not exist!")
 
         await self._session.call("reset_transformer", transformer.transformer_id)
+
+    async def close(self):
+        await asyncio.gather(*(self._session.call("delete_transformer", transformer) for transformer in self._transformers))

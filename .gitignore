@@ -9,3 +9,7 @@ perf.data.old
 /wra-py/web_rwkv_axum.egg-info
 /wra-py/build
 /wra-py/dist
+/wra-py/bnf_sampler
+
+# Utils
+convert_safetensors.py

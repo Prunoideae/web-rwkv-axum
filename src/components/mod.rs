@@ -1,8 +1,8 @@
 use anyhow::Error;
 
-pub mod model;
 pub mod infer;
-pub mod permit;
+pub mod model;
+pub mod normalizer;
 pub mod sampler;
 pub mod softmax;
 pub mod state;

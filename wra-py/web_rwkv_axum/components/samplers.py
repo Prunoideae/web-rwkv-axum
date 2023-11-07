@@ -1,3 +1,4 @@
+import asyncio
 from typing import TYPE_CHECKING, Any
 from ..helper import get_random
 
@@ -28,7 +29,7 @@ class Sampler:
     def valid(self) -> bool:
         return self.sampler_id in self._samplers._samplers
 
-    async def copy(self, dst_id: str) -> "Sampler":
+    async def copy(self, dst_id: str = None) -> "Sampler":
         return await self._samplers.copy_sampler(self, dst_id)
 
     async def update(self, tokens: int | str | list[int | str]):
@@ -92,3 +93,6 @@ class Samplers:
             raise RuntimeError("Sampler does not exist!")
 
         await self._session.call("reset_sampler", sampler.sampler_id)
+
+    async def close(self):
+        await asyncio.gather(*(self._session.call("delete_sampler", sampler) for sampler in self._samplers))

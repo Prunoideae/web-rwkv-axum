@@ -1,43 +1,66 @@
-use std::sync::Arc;
-
 use anyhow::Result;
-use dashmap::{DashMap, DashSet};
-use tokio::sync::mpsc;
+use std::{path::PathBuf, sync::Arc};
+use tokio::sync::{Mutex, RwLock};
+
 use web_rwkv::context::Context;
 
-use crate::components::model::{TypelessModel, TypelessModelState};
+use crate::components::model::{AxumBackedState, AxumModel, AxumModelState};
 
-use super::pool::{InferPool, InferRequest};
+use super::serde;
 
 struct InnerState {
     id: String,
-    state: TypelessModelState,
-    context: Context,
-    model: Arc<TypelessModel>,
+    state: Arc<RwLock<AxumBackedState>>,
+    valid: Mutex<bool>,
 }
 
 #[derive(Clone)]
-pub struct InferState(Arc<InnerState>);
+pub struct NamedState(Arc<InnerState>);
 
-impl InferState {
-    pub fn new(id: String, context: Context, model: Arc<TypelessModel>) -> Self {
-        let state = TypelessModelState::new(&context, &model, 1);
+impl NamedState {
+    pub fn new(
+        id: String,
+        context: Context,
+        model: Arc<AxumModel>,
+        chunk_size: Option<usize>,
+    ) -> Self {
         Self(Arc::new(InnerState {
             id,
-            state,
-            context,
-            model,
+            state: Arc::new(RwLock::new(AxumBackedState::new(
+                &context, &model, chunk_size,
+            ))),
+            valid: Mutex::new(true),
         }))
     }
 
-    #[inline(always)]
-    pub fn load_to(&self, pool: &TypelessModelState, to: usize) -> Result<()> {
-        Ok(self.0.state.blit_batch(pool, 0, to)?)
+    pub async fn new_from(id: String, path: PathBuf) -> Result<Self> {
+        let state = serde::load_state(path).await?;
+        Ok(Self(Arc::new(InnerState {
+            id,
+            state: Arc::new(RwLock::new(state)),
+            valid: Mutex::new(true),
+        })))
     }
 
-    #[inline(always)]
-    pub fn back_from(&self, pool: &TypelessModelState, from: usize) -> Result<()> {
-        Ok(pool.blit_batch(&self.0.state, from, 0)?)
+    pub fn load_to(&self, pool: &AxumModelState, to: usize) {
+        self.0.state.blocking_read().load_to(pool, to).unwrap();
+    }
+
+    pub async fn load_to_async(&self, pool: &AxumModelState, to: usize) {
+        self.0.state.read().await.load_to(pool, to).unwrap();
+    }
+
+    pub fn back_from(&self, pool: &AxumModelState, from: usize) {
+        *(self.0.state.blocking_write()) = AxumBackedState::back_from(pool, from).unwrap();
+    }
+
+    pub async fn back_from_async(&self, pool: &AxumModelState, from: usize) {
+        *(self.0.state.write().await) = AxumBackedState::back_from(pool, from).unwrap();
+    }
+
+    pub async fn dump(&self, path: PathBuf) -> Result<()> {
+        let lock = self.0.state.read().await;
+        serde::dump_state(&lock, path).await
     }
 
     #[inline(always)]
@@ -45,30 +68,49 @@ impl InferState {
         &self.0.id
     }
 
+    pub fn is_valid(&self) -> bool {
+        *self.0.valid.blocking_lock()
+    }
+
+    pub async fn is_valid_async(&self) -> bool {
+        *self.0.valid.lock().await
+    }
+
+    pub fn invalidate(&self) {
+        *self.0.valid.blocking_lock() = false
+    }
+
+    pub async fn invalidate_async(&self) {
+        *self.0.valid.lock().await = false;
+    }
+
     pub fn clone_new(&self, id: String) -> Result<Self> {
-        let new_state = TypelessModelState::new(&self.0.context, &self.0.model, 1);
-        self.load_to(&new_state, 0)?;
         Ok(Self(Arc::new(InnerState {
             id,
-            state: new_state,
-            context: self.0.context.clone(),
-            model: self.0.model.clone(),
+            state: Arc::new(RwLock::new(self.0.state.blocking_read().clone())),
+            valid: Mutex::new(true),
+        })))
+    }
+
+    pub async fn clone_new_async(&self, id: String) -> Result<Self> {
+        Ok(Self(Arc::new(InnerState {
+            id,
+            state: Arc::new(RwLock::new(self.0.state.read().await.clone())),
+            valid: Mutex::new(true),
+        })))
+    }
+
+    pub fn clone_shallow(&self, id: String) -> Result<Self> {
+        Ok(Self(Arc::new(InnerState {
+            id,
+            state: self.0.state.clone(),
+            valid: Mutex::new(true),
         })))
     }
 }
 
-impl PartialEq for InferState {
-    // Must ensure that each state is unique.
+impl PartialEq for NamedState {
     fn eq(&self, other: &Self) -> bool {
         self.0.id == other.0.id
     }
-}
-
-pub struct InnerStates {
-    pub context: Context,
-    pub model: Arc<TypelessModel>,
-    pub pool: InferPool,
-    pub state_ids: DashSet<String>,
-    pub states: DashMap<String, InferState>,
-    pub request_queue: mpsc::Sender<Vec<InferRequest>>,
 }
