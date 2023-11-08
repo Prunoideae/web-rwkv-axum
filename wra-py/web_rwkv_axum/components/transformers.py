@@ -50,11 +50,21 @@ class Transformers:
         self._session = session
         self._transformers = set()
 
-    async def create_transformer(self, builder: TransformerBuilder, transformer_id: str = None):
+    async def create_transformer(
+        self, builder: TransformerBuilder, transformer_id: str = None
+    ):
         if transformer_id is None:
             transformer_id = get_random(self._transformers)
 
-        if (resp := await self._session.call("create_transformer", {"id": transformer_id, "data": {"type_id": builder.type_id(), "params": builder.payload()}})).success():
+        if (
+            resp := await self._session.call(
+                "create_transformer",
+                {
+                    "id": transformer_id,
+                    "data": {"type_id": builder.type_id(), "params": builder.payload()},
+                },
+            )
+        ).success():
             self._transformers.add(transformer_id)
             return Transformer(transformer_id, self)
         else:
@@ -64,29 +74,41 @@ class Transformers:
         if not transformer.valid:
             raise RuntimeError("Transformer id does not exist!")
 
-        if (resp := await self._session.call("delete_transformer", transformer.transformer_id)).success():
-            self._transformers.remove(transformer.transformer_id)
-        else:
-            raise RuntimeError(resp.result)
+        await self._session.call("delete_transformer", transformer.transformer_id)
+        self._transformers.remove(transformer.transformer_id)
 
-    async def copy_transformer(self, src: Transformer, dst_id: str = None) -> Transformer:
+    async def copy_transformer(
+        self, src: Transformer, dst_id: str = None
+    ) -> Transformer:
         if not src.valid:
             raise RuntimeError("Source transformer does not exist!")
 
         if dst_id is None:
             dst_id = get_random(self._transformers)
 
-        if (resp := await self._session.call("copy_transformer", {"source": src.transformer_id, "destination": dst_id})).success():
+        if (
+            resp := await self._session.call(
+                "copy_transformer",
+                {"source": src.transformer_id, "destination": dst_id},
+            )
+        ).success():
             self._transformers.add(dst_id)
             return Transformer(dst_id, self)
         else:
             raise RuntimeError(resp.result)
 
-    async def update_transformer(self, transformer: Transformer, tokens: str | list[int, str]):
+    async def update_transformer(
+        self, transformer: Transformer, tokens: str | list[int, str]
+    ):
         if not transformer.valid:
             raise RuntimeError("Transformer does not exist!")
 
-        if not (response := await self._session.call("update_transformer", {"id": transformer.transformer_id, "tokens": tokens})).success():
+        if not (
+            response := await self._session.call(
+                "update_transformer",
+                {"id": transformer.transformer_id, "tokens": tokens},
+            )
+        ).success():
             raise RuntimeError(response.result)
 
     async def reset_transformer(self, transformer: Transformer):
@@ -96,4 +118,9 @@ class Transformers:
         await self._session.call("reset_transformer", transformer.transformer_id)
 
     async def close(self):
-        await asyncio.gather(*(self._session.call("delete_transformer", transformer) for transformer in self._transformers))
+        await asyncio.gather(
+            *(
+                self._session.call("delete_transformer", transformer)
+                for transformer in self._transformers
+            )
+        )

@@ -101,7 +101,9 @@ class InferPipeline:
                 {
                     "tokens": tokens,
                     "states": [s.state_id for s in self.states],
-                    "transformers": [[t.transformer_id for t in ts] for ts in self.transformers],
+                    "transformers": [
+                        [t.transformer_id for t in ts] for ts in self.transformers
+                    ],
                     "sampler": self.sampler.sampler_id,
                     "terminal": self.terminal.terminal_id,
                     "reset_on_exhaustion": reset_on_exhaustion,
@@ -123,14 +125,17 @@ class InferPipeline:
         else:
             raise RuntimeError(resp.result)
 
-    async def copy(self) -> "InferPipeline":
-        async def gather_list(ts: list[Any]) -> list[Any]:
-            return asyncio.gather(*[t.copy() for t in ts])
+    async def copy(self, shallow=False) -> "InferPipeline":
+        async def gather_list(ts: list[Any], *args, **kwargs) -> list[Any]:
+            return await asyncio.gather(*[t.copy(*args, **kwargs) for t in ts])
 
-        sampler, terminal, states, *transformers = await asyncio.gather(
-            *([self.sampler.copy(), self.terminal.copy(), gather_list(self.states)] + [gather_list(x) for x in self.transformers]),
-        )
+        tasks = [
+            self.sampler.copy(),
+            self.terminal.copy(),
+            gather_list(self.states, shallow=shallow),
+        ] + [gather_list(x) for x in self.transformers]
 
+        sampler, terminal, states, *transformers = await asyncio.gather(*tasks)
         return InferPipeline(self._session, states, transformers, sampler, terminal)
 
     async def close(self):
@@ -152,7 +157,12 @@ class Infers:
     def __init__(self, session: "Session") -> None:
         self._session = session
 
-    def pipeline(self, *args: tuple[State, list[Transformer]], sampler: Sampler, terminal: Terminal) -> InferPipeline:
+    def pipeline(
+        self,
+        *args: tuple[State, list[Transformer]],
+        sampler: Sampler,
+        terminal: Terminal,
+    ) -> InferPipeline:
         states: list[State] = []
         transformers: list[list[Transformer]] = []
         if not sampler.valid:
@@ -164,7 +174,9 @@ class Infers:
                 raise RuntimeError(f"State {arg[0].state_id} does not exist!")
             for t in arg[1]:
                 if not t.valid:
-                    raise RuntimeError(f"Transformer {t.transformer_id} does not exist!")
+                    raise RuntimeError(
+                        f"Transformer {t.transformer_id} does not exist!"
+                    )
             states.append(arg[0])
             transformers.append(arg[1])
 

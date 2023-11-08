@@ -53,7 +53,15 @@ class Terminals:
         if terminal_id is None:
             terminal_id = get_random(self._terminals)
 
-        if (resp := await self._session.call("create_terminal", {"id": terminal_id, "data": {"type_id": builder.type_id(), "params": builder.payload()}})).success():
+        if (
+            resp := await self._session.call(
+                "create_terminal",
+                {
+                    "id": terminal_id,
+                    "data": {"type_id": builder.type_id(), "params": builder.payload()},
+                },
+            )
+        ).success():
             self._terminals.add(terminal_id)
             return Terminal(terminal_id, self)
         else:
@@ -63,10 +71,8 @@ class Terminals:
         if not terminal.valid:
             raise RuntimeError("Terminal id does not exist!")
 
-        if (resp := await self._session.call("delete_terminal", terminal.terminal_id)).success():
-            self._terminals.remove(terminal.terminal_id)
-        else:
-            raise RuntimeError(resp.result)
+        await self._session.call("delete_terminal", terminal.terminal_id)
+        self._terminals.remove(terminal.terminal_id)
 
     async def copy_terminal(self, src: Terminal, dst_id: str = None) -> Terminal:
         if not src.valid:
@@ -75,7 +81,11 @@ class Terminals:
         if dst_id is None:
             dst_id = get_random(self._terminals)
 
-        if (resp := await self._session.call("copy_terminal", {"source": src.terminal_id, "destination": dst_id})).success():
+        if (
+            resp := await self._session.call(
+                "copy_terminal", {"source": src.terminal_id, "destination": dst_id}
+            )
+        ).success():
             self._terminals.add(dst_id)
             return Terminal(dst_id, self)
         else:
@@ -85,7 +95,11 @@ class Terminals:
         if not terminal.valid:
             raise RuntimeError("Terminal does not exist!")
 
-        if not (response := await self._session.call("update_terminal", {"id": terminal.terminal_id, "tokens": tokens})).success():
+        if not (
+            response := await self._session.call(
+                "update_terminal", {"id": terminal.terminal_id, "tokens": tokens}
+            )
+        ).success():
             raise RuntimeError(response.result)
 
     async def reset_terminal(self, terminal: Terminal):
@@ -95,4 +109,9 @@ class Terminals:
         await self._session.call("reset_terminal", terminal.terminal_id)
 
     async def close(self):
-        await asyncio.gather(*(self._session.call("delete_terminal", terminal) for terminal in self._terminals))
+        await asyncio.gather(
+            *(
+                self._session.call("delete_terminal", terminal)
+                for terminal in self._terminals
+            )
+        )

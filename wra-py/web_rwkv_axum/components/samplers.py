@@ -53,7 +53,15 @@ class Samplers:
         if sampler_id is None:
             sampler_id = get_random(self._samplers)
 
-        if (resp := await self._session.call("create_sampler", {"id": sampler_id, "data": {"type_id": builder.type_id(), "params": builder.payload()}})).success():
+        if (
+            resp := await self._session.call(
+                "create_sampler",
+                {
+                    "id": sampler_id,
+                    "data": {"type_id": builder.type_id(), "params": builder.payload()},
+                },
+            )
+        ).success():
             self._samplers.add(sampler_id)
             return Sampler(sampler_id, self)
         else:
@@ -63,10 +71,8 @@ class Samplers:
         if not sampler.valid:
             raise RuntimeError("Sampler id does not exist!")
 
-        if (resp := await self._session.call("delete_sampler", sampler.sampler_id)).success():
-            self._samplers.remove(sampler.sampler_id)
-        else:
-            raise RuntimeError(resp.result)
+        await self._session.call("delete_sampler", sampler.sampler_id)
+        self._samplers.remove(sampler.sampler_id)
 
     async def copy_sampler(self, src: Sampler, dst_id: str = None) -> Sampler:
         if not src.valid:
@@ -75,7 +81,11 @@ class Samplers:
         if dst_id is None:
             dst_id = get_random(self._samplers)
 
-        if (resp := await self._session.call("copy_sampler", {"source": src.sampler_id, "destination": dst_id})).success():
+        if (
+            resp := await self._session.call(
+                "copy_sampler", {"source": src.sampler_id, "destination": dst_id}
+            )
+        ).success():
             self._samplers.add(dst_id)
             return Sampler(dst_id, self)
         else:
@@ -85,7 +95,11 @@ class Samplers:
         if not sampler.valid:
             raise RuntimeError("Sampler does not exist!")
 
-        if not (response := await self._session.call("update_sampler", {"id": sampler.sampler_id, "tokens": tokens})).success():
+        if not (
+            response := await self._session.call(
+                "update_sampler", {"id": sampler.sampler_id, "tokens": tokens}
+            )
+        ).success():
             raise RuntimeError(response.result)
 
     async def reset_sampler(self, sampler: Sampler):
@@ -95,4 +109,9 @@ class Samplers:
         await self._session.call("reset_sampler", sampler.sampler_id)
 
     async def close(self):
-        await asyncio.gather(*(self._session.call("delete_sampler", sampler) for sampler in self._samplers))
+        await asyncio.gather(
+            *(
+                self._session.call("delete_sampler", sampler)
+                for sampler in self._samplers
+            )
+        )

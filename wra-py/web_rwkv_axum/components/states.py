@@ -27,7 +27,7 @@ class State:
     async def update(self, tokens: str | int | list[str | int]):
         if isinstance(tokens, int):
             tokens = [tokens]
-        self._states.update_state([self], [tokens])
+        await self._states.update_state([self], [tokens])
 
 
 class States:
@@ -35,7 +35,12 @@ class States:
         self._session = session
         self._states = set()
 
-    async def create_state(self, state_id: str = None, dump_id: str = None) -> State:
+    async def create_state(
+        self,
+        state_id: str = None,
+        dump_id: str = None,
+        initial_prompt: str = None,
+    ) -> State:
         if state_id is None:
             state_id = get_random(self._states)
         if (
@@ -48,7 +53,10 @@ class States:
             )
         ).success():
             self._states.add(state_id)
-            return State(state_id, self)
+            state = State(state_id, self)
+            if initial_prompt is not None:
+                await state.update(initial_prompt)
+            return state
         else:
             raise RuntimeError(resp.result)
 
@@ -56,16 +64,20 @@ class States:
         if not state.valid:
             raise RuntimeError("Source state id does not exist!")
 
-        if not (resp := await self._session.call("dump_state", {"state_id": state.state_id, "dump_id": dump_id})).success():
+        if not (
+            resp := await self._session.call(
+                "dump_state", {"state_id": state.state_id, "dump_id": dump_id}
+            )
+        ).success():
             raise RuntimeError(resp.result)
 
     async def delete_state(self, state: State):
-        if not (await self._session.call("delete_state", state.state_id)).success():
-            raise RuntimeError("State id does not exist!")
-        else:
-            self._states.remove(state.state_id)
+        await self._session.call("delete_state", state.state_id)
+        self._states.remove(state.state_id)
 
-    async def copy_state(self, src: State, dst_id: str = None, shallow: bool = False) -> State:
+    async def copy_state(
+        self, src: State, dst_id: str = None, shallow: bool = False
+    ) -> State:
         if not src.valid:
             raise RuntimeError("Source state id does not exist!")
 
@@ -87,14 +99,22 @@ class States:
         else:
             raise RuntimeError(resp.result)
 
-    async def update_state(self, states: list[State], tokens: list[str | list[int | str]]):
+    async def update_state(
+        self, states: list[State], tokens: list[str | list[int | str]]
+    ):
         state_ids = []
         for state in states:
             if state.state_id not in self._states:
                 raise RuntimeError(f"State {state.state_id} does not exist!")
             state_ids.append(state.state_id)
-        if not (response := await self._session.call("update_state", {"states": state_ids, "tokens": tokens})).success():
+        if not (
+            response := await self._session.call(
+                "update_state", {"states": state_ids, "tokens": tokens}
+            )
+        ).success():
             raise RuntimeError(response.result)
 
     async def close(self):
-        await asyncio.gather(*(self._session.call("delete_state", state) for state in self._states))
+        await asyncio.gather(
+            *(self._session.call("delete_state", state) for state in self._states)
+        )

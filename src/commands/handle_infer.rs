@@ -94,6 +94,9 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
         if sample_pipeline.terminate(&inferred_tokens, inferred_tokens.len())? {
             break "by_terminal";
         }
+        if last_token == 0 {
+            break "by_eos";
+        }
         let token_vec = vec![vec![last_token]; states_size];
         match sample_pipeline.update(&token_vec) {
             Ok(_) => (),
