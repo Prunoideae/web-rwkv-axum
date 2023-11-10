@@ -34,7 +34,7 @@ impl AppState {
         let model = Arc::new(config.model.load_model(&context).await?);
         println!("Model is loaded.");
 
-        let softmax = Softmax::new(model.clone(), config.model.get_batch_size()).await;
+        let softmax = Softmax::new(model.clone(), config.model.get_max_concurrency()).await;
         let (softmax_sender, _) = softmax.run().await;
 
         Ok(AppState(Arc::new(InnerState {
@@ -51,11 +51,24 @@ impl AppState {
         })))
     }
 
-    pub async fn update_state(&self, id: Vec<String>, tokens: Vec<Vec<u16>>) -> Result<()> {
+    pub async fn update_state(
+        &self,
+        id: Vec<String>,
+        tokens: Vec<Vec<u16>>,
+        token_probs: Option<Vec<u16>>,
+    ) -> Result<Vec<Vec<f32>>> {
         let flags = id.iter().map(|_| true).collect();
         let mut ticket = self.0.states.create_ticket(id, flags).await?;
-        ticket.infer(tokens).await;
-        Ok(())
+        let logits = ticket.infer(tokens).await;
+        if let Some(token_probs) = token_probs {
+            let probs = self.softmax(logits).await;
+            Ok(probs
+                .into_iter()
+                .map(|probs| token_probs.iter().map(|&i| probs[i as usize]).collect())
+                .collect())
+        } else {
+            Ok(Vec::new())
+        }
     }
 
     pub async fn dump_state(&self, id: String, dump_id: String) -> Result<()> {

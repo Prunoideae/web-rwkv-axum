@@ -14,6 +14,7 @@ bit-set = "0.5.3"
 bnf_sampler = "0.3.5"
 bson = "2.7.0"
 clap = {version = "4.4.1", features = ["derive"]}
+console-subscriber = "0.2.0"
 dashmap = {version = "5.5.3", features = ["rayon", "serde"]}
 faer = { version = "0.13.5", features = ["ndarray"] }
 fastrand = "2.0.0"
@@ -39,7 +40,6 @@ toml = "0.7.6"
 web-rwkv = {git = 'https://github.com/cryscan/web-rwkv'}
 
 [profile.release]
-lto = true
 
 [lib]
 name = "web_rwkv_axum"

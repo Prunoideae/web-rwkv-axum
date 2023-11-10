@@ -40,14 +40,16 @@ class InferResult:
         update_prompt: bool = True,
         reset_on_exhaustion: bool | ExhaustionReset = True,
     ):
+        last_token_list = [self.last_token] if self.last_token != 0 else []
         if isinstance(tokens, list):
             if len(tokens) != len(self.pipeline.states):
                 raise RuntimeError("Token list size mismatch!")
+            tokens = [last_token_list + token for token in tokens]
         if isinstance(tokens, str):
-            tokens = [[self.last_token, tokens] for _ in self.pipeline.states]
+            tokens = [last_token_list + [tokens] for _ in self.pipeline.states]
 
         if tokens is None:
-            tokens = [[self.last_token] for _ in self.pipeline.states]
+            tokens = [last_token_list for _ in self.pipeline.states]
         resp = await self.pipeline.infer(
             tokens=tokens,
             update_prompt=update_prompt,

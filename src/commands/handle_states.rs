@@ -70,17 +70,22 @@ pub async fn delete_state(data: Option<Value>, state: AppState) -> Result<Value>
 struct StateUpdate {
     states: Vec<String>,
     tokens: Value,
+    probs_dist: Option<Vec<u16>>,
 }
 
 #[inline]
 pub async fn update_state(data: Option<Value>, state: AppState) -> Result<Value> {
     if let Some(data) = data {
-        let StateUpdate { states, tokens } = serde_json::from_value(data)?;
+        let StateUpdate {
+            states,
+            tokens,
+            probs_dist,
+        } = serde_json::from_value(data)?;
         let tokens = to_token_vec(&state, tokens)?;
         state
-            .update_state(states, tokens)
+            .update_state(states, tokens, probs_dist)
             .await
-            .map(|_| Value::Null)
+            .and_then(|v| Ok(serde_json::to_value(v)?))
     } else {
         Err(Error::msg(
             "Field data is needed to specify state id and tokens!",

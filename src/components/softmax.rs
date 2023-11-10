@@ -1,5 +1,5 @@
 use anyhow::{Error, Result};
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use tokio::{
     sync::{mpsc, oneshot},
@@ -11,14 +11,14 @@ use super::model::AxumModel;
 #[derive(Clone)]
 pub struct Softmax {
     model: Arc<AxumModel>,
-    max_batch_size: usize,
+    max_concurrency: usize,
 }
 
 impl Softmax {
-    pub async fn new(model: Arc<AxumModel>, max_batch_size: usize) -> Self {
+    pub async fn new(model: Arc<AxumModel>, max_concurrency: usize) -> Self {
         Self {
             model,
-            max_batch_size,
+            max_concurrency,
         }
     }
 
@@ -26,40 +26,42 @@ impl Softmax {
         &self,
         mut receiver: mpsc::Receiver<Vec<(Vec<f32>, oneshot::Sender<Vec<f32>>)>>,
     ) {
-        let mut queue = Vec::with_capacity(self.max_batch_size);
+        let mut queue = Vec::with_capacity(self.max_concurrency);
         while let Some(requests) = receiver.recv().await {
             queue.extend(requests);
+            loop {
+                while let Ok(requests) = receiver.try_recv() {
+                    queue.extend(requests);
+                    if queue.len() >= self.max_concurrency {
+                        break;
+                    }
+                }
 
-            // Sleep for 5us to make things batched
-            tokio::time::sleep(Duration::from_micros(10)).await;
+                let (softmax_queue, sender_queue): (Vec<Vec<f32>>, Vec<oneshot::Sender<Vec<f32>>>) =
+                    queue
+                        .split_off(if self.max_concurrency > queue.len() {
+                            0
+                        } else {
+                            queue.len() - self.max_concurrency
+                        })
+                        .into_iter()
+                        .unzip();
+                let softmax_queue = self.model.softmax(softmax_queue).unwrap();
+                softmax_queue
+                    .into_iter()
+                    .zip(sender_queue.into_iter())
+                    .map(|(result, sender)| {
+                        sender
+                            .send(result)
+                            .map_err(|_| Error::msg("Can't send data due to channel is dropped!"))
+                    })
+                    .collect::<Result<Vec<_>>>()
+                    .unwrap();
 
-            while let Ok(requests) = receiver.try_recv() {
-                queue.extend(requests);
-                if queue.len() >= self.max_batch_size {
+                if queue.is_empty() {
                     break;
                 }
             }
-
-            let (softmax_queue, sender_queue): (Vec<Vec<f32>>, Vec<oneshot::Sender<Vec<f32>>>) =
-                queue
-                    .split_off(if self.max_batch_size > queue.len() {
-                        0
-                    } else {
-                        queue.len() - self.max_batch_size
-                    })
-                    .into_iter()
-                    .unzip();
-            let softmax_queue = self.model.softmax(softmax_queue).unwrap();
-            softmax_queue
-                .into_iter()
-                .zip(sender_queue.into_iter())
-                .map(|(result, sender)| {
-                    sender
-                        .send(result)
-                        .map_err(|_| Error::msg("Can't send data due to channel is dropped!"))
-                })
-                .collect::<Result<Vec<_>>>()
-                .unwrap();
         }
     }
 
@@ -69,7 +71,7 @@ impl Softmax {
         mpsc::Sender<Vec<(Vec<f32>, oneshot::Sender<Vec<f32>>)>>,
         JoinHandle<()>,
     ) {
-        let (sender, receiver) = mpsc::channel(self.max_batch_size);
+        let (sender, receiver) = mpsc::channel(self.max_concurrency);
         (
             sender,
             tokio::spawn(async move { self.softmax_loop(receiver).await }),

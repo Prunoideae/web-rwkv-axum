@@ -24,10 +24,18 @@ class State:
     async def copy(self, dst_id: str = None, shallow: bool = False) -> "State":
         return await self._states.copy_state(self, dst_id, shallow)
 
-    async def update(self, tokens: str | int | list[str | int]):
+    async def update(
+        self,
+        tokens: str | int | list[str | int],
+        probs_dist: list[int] = None,
+    ) -> list[float] | None:
         if isinstance(tokens, int):
             tokens = [tokens]
-        await self._states.update_state([self], [tokens])
+        return (
+            logits[0]
+            if (logits := await self._states.update_state([self], [tokens], probs_dist))
+            else None
+        )
 
 
 class States:
@@ -100,8 +108,11 @@ class States:
             raise RuntimeError(resp.result)
 
     async def update_state(
-        self, states: list[State], tokens: list[str | list[int | str]]
-    ):
+        self,
+        states: list[State],
+        tokens: list[str | list[int | str]],
+        probs_dist: list[int] = None,
+    ) -> list[list[float]] | None:
         state_ids = []
         for state in states:
             if state.state_id not in self._states:
@@ -109,10 +120,17 @@ class States:
             state_ids.append(state.state_id)
         if not (
             response := await self._session.call(
-                "update_state", {"states": state_ids, "tokens": tokens}
+                "update_state",
+                {
+                    "states": state_ids,
+                    "tokens": tokens,
+                    "probs_dist": probs_dist,
+                },
             )
         ).success():
             raise RuntimeError(response.result)
+        else:
+            return response.result or None
 
     async def close(self):
         await asyncio.gather(

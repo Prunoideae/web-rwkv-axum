@@ -129,13 +129,15 @@ async def invoke_command(ws: WebSocketClientProtocol, command: str, payload: Any
 async def state_updates(ws: WebSocketClientProtocol):
     lines = prompt.split("\n\n")
     for line in lines:
-        result = await invoke_command(ws, "update_state", {"states": [state_name], "tokens": [line + "\n\n"]})
+        result = await invoke_command(
+            ws, "update_state", {"states": [state_name], "tokens": [line + "\n\n"]}
+        )
         print(result)
 
 
 commands = [
     ["echo", "sus"],
-    ["create_state", state_name],
+    ["create_state", {"id": state_name}],
     [
         "create_sampler",
         {
@@ -217,11 +219,12 @@ Response:
 The rating and comments are:
 """
 
+
 async def main():
     async with connect(uri, ping_timeout=90) as ws:
+        print(sys.argv[1])
         for command, payload in commands:
             result = await invoke_command(ws, command, payload)
-            print(result, flush=True)
         # await state_updates(ws)
         result = await invoke_command(
             ws,
@@ -236,9 +239,6 @@ async def main():
                 "reset_on_exhaustion": True,
             },
         )
-
-        print(result)
-
         result = result["result"]
 
         elapsed = 0
@@ -268,7 +268,6 @@ async def main():
             inferred += result["inferred_tokens"]
             result = result["last_token"]
             break
-        print(prompt + output)
         print(await invoke_command(ws, "delete_state", state_name))
         await invoke_command(ws, "delete_sampler", sampler_name)
         await invoke_command(ws, "delete_transformer", transformer_name)

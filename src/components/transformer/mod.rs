@@ -1,10 +1,13 @@
 use self::types::Transformer;
 use crate::{app::AppState, hashmap_ex};
 use anyhow::{Error, Ok, Result};
-use dashmap::{mapref::one::RefMut, DashMap};
+use dashmap::DashMap;
 use serde::Deserialize;
 use serde_json::Value;
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 use super::InferenceInterruption;
 
@@ -22,7 +25,7 @@ struct TransformerJson {
 
 pub struct Transformers {
     registry: HashMap<&'static str, fn(AppState, Option<Value>) -> Result<Box<dyn Transformer>>>,
-    map: DashMap<String, Box<dyn Transformer>>,
+    map: DashMap<String, Arc<Mutex<Box<dyn Transformer>>>>,
 }
 
 impl Transformers {
@@ -67,7 +70,10 @@ impl Transformers {
         if let Some(data) = data {
             let TransformerJson { type_id, params } =
                 serde_json::from_value::<TransformerJson>(data)?;
-            self.map.insert(id, self.create(&type_id, state, params)?);
+            self.map.insert(
+                id,
+                Arc::new(Mutex::new(self.create(&type_id, state, params)?)),
+            );
             Ok(())
         } else {
             Err(Error::msg("No data to construct transformer!"))
@@ -75,11 +81,8 @@ impl Transformers {
     }
 
     #[inline(always)]
-    pub fn get_transformer<'a>(
-        &'a self,
-        id: &String,
-    ) -> Option<RefMut<'_, String, Box<dyn Transformer>>> {
-        self.map.get_mut(id)
+    pub fn get_transformer<'a>(&'a self, id: &String) -> Option<Arc<Mutex<Box<dyn Transformer>>>> {
+        self.map.get(id).map(|x| x.clone())
     }
 
     #[inline(always)]
@@ -95,8 +98,8 @@ impl Transformers {
     }
 
     pub fn reset_transformer(&self, id: &str) -> Result<()> {
-        if let Some(mut transformer) = self.map.get_mut(id) {
-            transformer.clear();
+        if let Some(transformer) = self.map.get(id) {
+            transformer.lock().unwrap().clear();
             Ok(())
         } else {
             Err(Error::msg("Transformer id doesn't exist!"))
@@ -108,8 +111,8 @@ impl Transformers {
         id: &str,
         content: &Vec<u16>,
     ) -> Result<(), InferenceInterruption> {
-        if let Some(mut transformer) = self.map.get_mut(id) {
-            transformer.update(content)
+        if let Some(transformer) = self.map.get(id) {
+            transformer.lock().unwrap().update(content)
         } else {
             Err(InferenceInterruption::Error(Error::msg(
                 "Transformer id doesn't exist!",
@@ -132,7 +135,7 @@ impl Transformers {
 
     pub fn transform_logits(&self, id: &String, logits: Vec<f32>) -> Result<Vec<f32>> {
         if let Some(transformer) = self.map.get_mut(id) {
-            Ok(transformer.transform(logits))
+            Ok(transformer.lock().unwrap().transform(logits))
         } else {
             Err(Error::msg("Transformer id doesn't exist!"))
         }

@@ -1,7 +1,10 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 use anyhow::{Error, Result};
-use dashmap::{mapref::one::RefMut, DashMap};
+use dashmap::DashMap;
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -22,7 +25,7 @@ struct NormalizerJson {
 #[derive()]
 pub struct Normalizers {
     registry: HashMap<&'static str, fn(AppState, Option<Value>) -> Result<Box<dyn Normalizer>>>,
-    map: DashMap<String, Box<dyn Normalizer>>,
+    map: DashMap<String, Arc<Mutex<Box<dyn Normalizer>>>>,
 }
 
 impl Normalizers {
@@ -58,16 +61,16 @@ impl Normalizers {
             return Err(Error::msg("Normalizer already existed!"));
         }
         let NormalizerJson { type_id, params } = serde_json::from_value::<NormalizerJson>(data)?;
-        self.map.insert(id, self.create(&type_id, state, params)?);
+        self.map.insert(
+            id,
+            Arc::new(Mutex::new(self.create(&type_id, state, params)?)),
+        );
         Ok(())
     }
 
     #[inline(always)]
-    pub fn get_normalizer<'a>(
-        &'a self,
-        id: &str,
-    ) -> Option<RefMut<'_, String, Box<dyn Normalizer>>> {
-        self.map.get_mut(id)
+    pub fn get_normalizer<'a>(&'a self, id: &str) -> Option<Arc<Mutex<Box<dyn Normalizer>>>> {
+        self.map.get(id).map(|x| x.clone())
     }
 
     #[inline(always)]
@@ -83,8 +86,8 @@ impl Normalizers {
     }
 
     pub fn reset_normalizer(&self, id: &str) -> Result<()> {
-        if let Some(mut normalizer) = self.map.get_mut(id) {
-            normalizer.clear();
+        if let Some(normalizer) = self.map.get(id) {
+            normalizer.lock().unwrap().clear();
             Ok(())
         } else {
             Err(Error::msg("Normalizer id doesn't exist!"))
@@ -96,8 +99,8 @@ impl Normalizers {
         id: &str,
         content: &Vec<Vec<u16>>,
     ) -> Result<(), InferenceInterruption> {
-        if let Some(mut normalizer) = self.map.get_mut(id) {
-            normalizer.update(content)
+        if let Some(normalizer) = self.map.get(id) {
+            normalizer.lock().unwrap().update(content)
         } else {
             Err(InferenceInterruption::Error(Error::msg(
                 "Normalizer id doesn't exist!",
@@ -116,13 +119,5 @@ impl Normalizers {
             .clone();
         self.map.insert(dst, src);
         Ok(())
-    }
-
-    pub fn normalize_logits(&self, id: &String, logits: Vec<Vec<f32>>) -> Result<Vec<Vec<f32>>> {
-        if let Some(normalizer) = self.map.get(id) {
-            Ok(normalizer.normalize(logits))
-        } else {
-            Err(Error::msg("Normalizer id doesn't exist!"))
-        }
     }
 }

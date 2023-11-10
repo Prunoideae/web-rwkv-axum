@@ -1,8 +1,11 @@
 use anyhow::{Error, Result};
-use dashmap::{mapref::one::RefMut, DashMap};
+use dashmap::DashMap;
 use serde::Deserialize;
 use serde_json::Value;
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 use crate::{app::AppState, hashmap_ex};
 
@@ -20,7 +23,7 @@ struct TerminalJson {
 
 pub struct Terminals {
     registry: HashMap<&'static str, fn(AppState, Option<Value>) -> Result<Box<dyn Terminal>>>,
-    map: DashMap<String, Box<dyn Terminal>>,
+    map: DashMap<String, Arc<Mutex<Box<dyn Terminal>>>>,
 }
 
 impl Terminals {
@@ -51,7 +54,10 @@ impl Terminals {
             return Err(Error::msg("Terminal already existed!"));
         }
         let TerminalJson { type_id, params } = serde_json::from_value(data)?;
-        self.map.insert(id, self.create(&type_id, state, params)?);
+        self.map.insert(
+            id,
+            Arc::new(Mutex::new(self.create(&type_id, state, params)?)),
+        );
         Ok(())
     }
 
@@ -64,8 +70,8 @@ impl Terminals {
     }
 
     #[inline(always)]
-    pub fn get_terminal<'a>(&'a self, id: &str) -> Option<RefMut<'a, String, Box<dyn Terminal>>> {
-        self.map.get_mut(id)
+    pub fn get_terminal<'a>(&'a self, id: &str) -> Option<Arc<Mutex<Box<dyn Terminal>>>> {
+        self.map.get(id).map(|x| x.clone())
     }
 
     #[inline(always)]
@@ -74,8 +80,8 @@ impl Terminals {
     }
 
     pub fn reset_terminal(&self, id: &str) -> Result<()> {
-        if let Some(mut sampler) = self.map.get_mut(id) {
-            sampler.clear();
+        if let Some(sampler) = self.map.get(id) {
+            sampler.lock().unwrap().clear();
             Ok(())
         } else {
             Err(Error::msg("Terminal id doesn't exist!"))
@@ -93,13 +99,5 @@ impl Terminals {
             .clone();
         self.map.insert(dst, src);
         Ok(())
-    }
-
-    pub fn terminate(&self, id: &str, result: &Vec<u16>, token_count: usize) -> Result<bool> {
-        if let Some(mut terminal) = self.get_terminal(id) {
-            terminal.terminate(result, token_count)
-        } else {
-            Err(Error::msg("Terminal id doesn't exist!"))
-        }
     }
 }

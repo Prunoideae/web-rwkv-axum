@@ -1,12 +1,13 @@
 use std::{
     num::NonZeroUsize,
     sync::{Arc, RwLock},
+    thread::spawn,
 };
 
 use itertools::Itertools;
 use lru::LruCache;
 use nohash_hasher::BuildNoHashHasher;
-use tokio::{sync::mpsc, task};
+use tokio::sync::mpsc;
 use web_rwkv::context::Context;
 
 use crate::components::model::{AxumModel, AxumModelState};
@@ -286,12 +287,8 @@ impl InferPool {
                 // Infer till at least 1 slot is done, this blocks on all
                 // active infer requests to wait for token input from all
                 // requests
-                //
-                // This is block_in_place so the worker thread can be swapped
-                // out to do something more meaningful, probably
-                tokio::task::block_in_place(|| {
-                    slots.infer(&self.0.model);
-                });
+                slots.infer(&self.0.model);
+
                 // Try to receive more requests, note this is guarded by
                 // a semaphore elsewhere
                 slots.clear();
@@ -311,7 +308,7 @@ impl InferPool {
     pub async fn start_loop(&self) -> mpsc::Sender<Vec<InferRequest>> {
         let (sender, receiver) = mpsc::channel(self.0.batch_size);
         let looped = self.clone();
-        task::spawn_blocking(move || {
+        spawn(move || {
             looped.infer_loop(receiver);
         });
         sender

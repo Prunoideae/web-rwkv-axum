@@ -1,7 +1,7 @@
 use std::collections::HashSet;
+use std::sync::{Arc, Mutex};
 
 use anyhow::{Error, Result};
-use dashmap::mapref::one::RefMut;
 use rayon::prelude::*;
 
 use crate::app::AppState;
@@ -19,23 +19,23 @@ pub mod state;
 pub mod tokens;
 
 /// Wrapped logic for updating, transforming-sampling, and terminating.
-pub struct SamplePipeline<'a> {
-    transformers: Vec<Vec<RefMut<'a, String, Box<dyn Transformer>>>>,
-    sampler: RefMut<'a, String, Box<dyn Sampler>>,
-    terminal: RefMut<'a, String, Box<dyn Terminal>>,
-    normalizer: Option<RefMut<'a, String, Box<dyn Normalizer>>>,
+pub struct SamplePipeline {
+    transformers: Vec<Vec<Arc<Mutex<Box<dyn Transformer>>>>>,
+    sampler: Arc<Mutex<Box<dyn Sampler>>>,
+    terminal: Arc<Mutex<Box<dyn Terminal>>>,
+    normalizer: Option<Arc<Mutex<Box<dyn Normalizer>>>>,
     reset_setting: ResetSetting,
 }
 
-impl<'a> SamplePipeline<'a> {
+impl SamplePipeline {
     pub fn new(
-        state: &'a AppState,
+        state: &AppState,
         transformers: &Vec<Vec<String>>,
         sampler: &str,
         terminal: &str,
         normalizer: &Option<String>,
         reset_setting: ResetSetting,
-    ) -> Result<SamplePipeline<'a>> {
+    ) -> Result<SamplePipeline> {
         let mut uniq = HashSet::new();
         if !transformers
             .iter()
@@ -95,7 +95,7 @@ impl<'a> SamplePipeline<'a> {
 
     /// Should call this in blocking as it can be computation heavy
     pub fn update(&mut self, tokens: &Vec<Vec<u16>>) -> Result<(), InferenceInterruption> {
-        self.sampler.update(tokens)?;
+        self.sampler.lock().unwrap().update(tokens)?;
         if self.transformers.len() != tokens.len() {
             return Err(InferenceInterruption::Error(Error::msg(
                 "Transformer/tokens batch size mismatch!",
@@ -106,7 +106,7 @@ impl<'a> SamplePipeline<'a> {
             .zip(tokens.par_iter())
             .map(|(transformers, tokens)| {
                 for transformer in transformers {
-                    transformer.update(tokens)?;
+                    transformer.lock().unwrap().update(tokens)?;
                 }
                 Ok(())
             })
@@ -127,17 +127,17 @@ impl<'a> SamplePipeline<'a> {
             .zip(transformers)
             .for_each(|(transformer, &flag)| {
                 if flag {
-                    transformer.clear();
+                    transformer.lock().unwrap().clear();
                 }
             });
 
         if *sampler {
-            self.sampler.clear();
+            self.sampler.lock().unwrap().clear();
         }
 
         if *normalizer {
-            if let Some(normalizer) = self.normalizer.as_mut() {
-                normalizer.clear();
+            if let Some(normalizer) = self.normalizer.as_ref() {
+                normalizer.lock().unwrap().clear();
             }
         }
     }
@@ -150,21 +150,21 @@ impl<'a> SamplePipeline<'a> {
             .zip(logits.into_par_iter())
             .map(|(transformers, mut logits)| {
                 for transformer in transformers {
-                    logits = transformer.transform(logits);
+                    logits = transformer.lock().unwrap().transform(logits);
                 }
                 logits
             })
             .collect::<Vec<_>>();
         let logits = if let Some(normalizer) = &self.normalizer {
-            normalizer.normalize(logits)
+            normalizer.lock().unwrap().normalize(logits)
         } else {
             app_state.softmax_blocking(logits)
         };
-        self.sampler.sample(logits)
+        self.sampler.lock().unwrap().sample(logits)
     }
 
     #[inline(always)]
     pub fn terminate(&mut self, result: &Vec<u16>, token_count: usize) -> Result<bool> {
-        self.terminal.terminate(result, token_count)
+        self.terminal.lock().unwrap().terminate(result, token_count)
     }
 }

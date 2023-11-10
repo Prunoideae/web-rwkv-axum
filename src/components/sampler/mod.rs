@@ -1,15 +1,18 @@
 use self::types::Sampler;
 use crate::{app::AppState, hashmap_ex};
 use anyhow::{Error, Ok, Result};
-use dashmap::{mapref::one::RefMut, DashMap};
+use dashmap::DashMap;
 use serde::Deserialize;
 use serde_json::Value;
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 use super::InferenceInterruption;
 
-pub mod types;
 pub mod nucleus;
+pub mod types;
 mod typical;
 mod utils;
 
@@ -22,7 +25,7 @@ struct SamplerJson {
 #[derive(Debug)]
 pub struct Samplers {
     registry: HashMap<&'static str, fn(AppState, Option<Value>) -> Result<Box<dyn Sampler>>>,
-    map: DashMap<String, Box<dyn Sampler>>,
+    map: DashMap<String, Arc<Mutex<Box<dyn Sampler>>>>,
 }
 
 impl Samplers {
@@ -53,13 +56,16 @@ impl Samplers {
             return Err(Error::msg("Sampler already existed!"));
         }
         let SamplerJson { type_id, params } = serde_json::from_value::<SamplerJson>(data)?;
-        self.map.insert(id, self.create(&type_id, state, params)?);
+        self.map.insert(
+            id,
+            Arc::new(Mutex::new(self.create(&type_id, state, params)?)),
+        );
         Ok(())
     }
 
     #[inline(always)]
-    pub fn get_sampler<'a>(&'a self, id: &str) -> Option<RefMut<'_, String, Box<dyn Sampler>>> {
-        self.map.get_mut(id)
+    pub fn get_sampler<'a>(&'a self, id: &str) -> Option<Arc<Mutex<Box<dyn Sampler>>>> {
+        self.map.get(id).map(|x| x.clone())
     }
 
     #[inline(always)]
@@ -75,8 +81,8 @@ impl Samplers {
     }
 
     pub fn reset_sampler(&self, id: &str) -> Result<()> {
-        if let Some(mut sampler) = self.map.get_mut(id) {
-            sampler.clear();
+        if let Some(sampler) = self.map.get(id) {
+            sampler.lock().unwrap().clear();
             Ok(())
         } else {
             Err(Error::msg("Sampler id doesn't exist!"))
@@ -88,8 +94,8 @@ impl Samplers {
         id: &str,
         content: &Vec<Vec<u16>>,
     ) -> Result<(), InferenceInterruption> {
-        if let Some(mut sampler) = self.map.get_mut(id) {
-            sampler.update(content)
+        if let Some(sampler) = self.map.get(id) {
+            sampler.lock().unwrap().update(content)
         } else {
             Err(InferenceInterruption::Error(Error::msg(
                 "Sampler id doesn't exist!",
@@ -108,13 +114,5 @@ impl Samplers {
             .clone();
         self.map.insert(dst, src);
         Ok(())
-    }
-
-    pub fn sample_token(&self, id: &String, probs: Vec<Vec<f32>>) -> Result<u16> {
-        if let Some(sampler) = self.map.get(id) {
-            Ok(sampler.sample(probs))
-        } else {
-            Err(Error::msg("Sampler id doesn't exist!"))
-        }
     }
 }
