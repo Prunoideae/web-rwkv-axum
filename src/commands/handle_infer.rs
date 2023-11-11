@@ -52,6 +52,8 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
         timeout: timeout_millis,
     } = serde_json::from_value(data.ok_or(Error::msg("Payload required!"))?)?;
 
+    let max_tokens = state.0.config.model.get_max_infer_tokens();
+
     let update_prompt = update_prompt.unwrap_or(true);
     let states_size = states.len();
     let states_flag = state_flag_from_value(&states, update_states)?;
@@ -96,6 +98,9 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
         }
         if last_token == 0 {
             break "by_eos";
+        }
+        if inferred_tokens.len() >= max_tokens {
+            break "by_max_tokens";
         }
         let token_vec = vec![vec![last_token]; states_size];
         match sample_pipeline.update(&token_vec) {

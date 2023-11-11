@@ -38,6 +38,10 @@ preference = "HighPerformance"
 # Quantize a certain layer of the model, a bit flag.
 # If omitted, no quantization is done.
 # quantization = 4
+# Max tokens that can be inferred in one infer request
+# This is use to set a hard cap for the infer, so request with
+# potentially unending condition can still return.
+max_infer_tokens = 256
 
 [tokenizer]
 # Path to the vocab JSON.

@@ -82,6 +82,7 @@ pub struct ModelSpec {
     preference: Option<props::Preference>,
     adapter: Option<usize>,
     quantization: Option<String>,
+    max_infer_tokens: Option<usize>,
 }
 
 impl ModelSpec {
@@ -99,6 +100,10 @@ impl ModelSpec {
 
     pub fn get_max_state_size(&self) -> Option<usize> {
         self.max_state_size
+    }
+
+    pub fn get_max_infer_tokens(&self) -> usize {
+        self.max_infer_tokens.unwrap_or(256)
     }
 
     pub async fn select_adapter(&self, instance: &Instance) -> Result<Adapter> {
