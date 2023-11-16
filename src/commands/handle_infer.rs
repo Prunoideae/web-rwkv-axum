@@ -9,7 +9,10 @@ use crate::{
     app::AppState,
     components::{
         infer::{
-            reset::ResetSetting, state::state_flag_from_value, tokens::to_tokens, SamplePipeline,
+            state::state_flag_from_value,
+            tokens::to_tokens,
+            updates::{ResetSetting, UpdateSetting},
+            SamplePipeline,
         },
         InferenceInterruption,
     },
@@ -23,7 +26,7 @@ struct InferPayload {
     sampler: String,
     normalizer: Option<String>,
     terminal: String,
-    update_prompt: Option<bool>,
+    update_prompt: Option<Value>,
     update_states: Option<Value>,
     reset_on_exhaustion: Option<Value>,
     timeout: Option<usize>,
@@ -54,7 +57,6 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
 
     let max_tokens = state.0.config.model.get_max_infer_tokens();
 
-    let update_prompt = update_prompt.unwrap_or(true);
     let states_size = states.len();
     let states_flag = state_flag_from_value(&states, update_states)?;
 
@@ -79,14 +81,17 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
         ResetSetting::from_value(&transformers, reset_on_exhaustion)?,
     )?;
 
-    if update_prompt {
-        sample_pipeline.update(&tokens).map_err(|e| match e {
+    sample_pipeline
+        .update(
+            &tokens,
+            UpdateSetting::from_value(&transformers, update_prompt)?,
+        )
+        .map_err(|e| match e {
             InferenceInterruption::Error(e) => e,
             InferenceInterruption::Exhaustion => {
                 Error::msg("Pipeline is exhausted before starting.")
             }
         })?;
-    }
 
     let logits = ticket.infer(tokens).await;
     let mut last_token = tokio::task::block_in_place(|| sample_pipeline.sample(logits, &state));
@@ -103,7 +108,7 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
             break "by_max_tokens";
         }
         let token_vec = vec![vec![last_token]; states_size];
-        match sample_pipeline.update(&token_vec) {
+        match sample_pipeline.update_blind(&token_vec) {
             Ok(_) => (),
             Err(InferenceInterruption::Exhaustion) => {
                 sample_pipeline.reset();

@@ -6,7 +6,7 @@ use rayon::prelude::*;
 
 use crate::app::AppState;
 
-use self::reset::ResetSetting;
+use self::updates::{ResetSetting, UpdateSetting};
 
 use super::normalizer::types::Normalizer;
 use super::sampler::types::Sampler;
@@ -14,9 +14,9 @@ use super::terminal::types::Terminal;
 use super::transformer::types::Transformer;
 use super::InferenceInterruption;
 
-pub mod reset;
 pub mod state;
 pub mod tokens;
+pub mod updates;
 
 /// Wrapped logic for updating, transforming-sampling, and terminating.
 pub struct SamplePipeline {
@@ -94,7 +94,7 @@ impl SamplePipeline {
     }
 
     /// Should call this in blocking as it can be computation heavy
-    pub fn update(&mut self, tokens: &Vec<Vec<u16>>) -> Result<(), InferenceInterruption> {
+    pub fn update_blind(&mut self, tokens: &Vec<Vec<u16>>) -> Result<(), InferenceInterruption> {
         self.sampler.lock().unwrap().update(tokens)?;
         if self.transformers.len() != tokens.len() {
             return Err(InferenceInterruption::Error(Error::msg(
@@ -107,6 +107,42 @@ impl SamplePipeline {
             .map(|(transformers, tokens)| {
                 for transformer in transformers {
                     transformer.lock().unwrap().update(tokens)?;
+                }
+                Ok(())
+            })
+            .collect::<Result<Vec<_>, InferenceInterruption>>()?;
+        Ok(())
+    }
+
+    /// Should call this in blocking as it can be computation heavy
+    pub fn update(
+        &mut self,
+        tokens: &Vec<Vec<u16>>,
+        update_setting: UpdateSetting,
+    ) -> Result<(), InferenceInterruption> {
+        let UpdateSetting {
+            transformers,
+            sampler,
+        } = update_setting;
+
+        if sampler {
+            self.sampler.lock().unwrap().update(tokens)?;
+        }
+
+        if self.transformers.len() != tokens.len() {
+            return Err(InferenceInterruption::Error(Error::msg(
+                "Transformer/tokens batch size mismatch!",
+            )));
+        }
+        self.transformers
+            .par_iter_mut()
+            .zip(tokens.par_iter())
+            .zip(transformers.into_par_iter())
+            .map(|((transformers, tokens), updates)| {
+                for (transformer, update) in transformers.iter().zip(updates.into_iter()) {
+                    if update {
+                        transformer.lock().unwrap().update(tokens)?;
+                    }
                 }
                 Ok(())
             })

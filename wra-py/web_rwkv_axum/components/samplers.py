@@ -17,6 +17,9 @@ class SamplerBuilder:
         Create the payload used by the sampler
         """
 
+    async def build(self, session: "Session"):
+        return await session.samplers.create_sampler(self)
+
 
 class Sampler:
     sampler_id: str

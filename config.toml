@@ -7,7 +7,7 @@ state_dump = "states"
 [model]
 # Path to the model file
 # Must be a safetensor instead of pth.
-path = "assets/RWKV-5-World-7B-v2-OnlyForTest_39%_trained-20231106-ctx4096.st"
+path = "assets/RWKV-5-World-7B-v2-OnlyForTest_49%_trained-20231114-ctx4096.st"
 # Max batch count means maximum size of model state used
 # as pool for batch inference. Larger size reduce the need
 # of buffer swapping at the cost of increased GPU memory

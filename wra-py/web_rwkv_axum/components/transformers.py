@@ -18,6 +18,9 @@ class TransformerBuilder:
         Create the payload used by the transformer
         """
 
+    async def build(self, session: "Session"):
+        return await session.transformers.create_transformer(self)
+
 
 class Transformer:
     transformer_id: str

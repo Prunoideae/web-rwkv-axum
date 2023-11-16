@@ -17,6 +17,9 @@ class TerminalBuilder:
         Create the payload used by the terminal
         """
 
+    async def build(self, session: "Session"):
+        return await session.terminals.create_terminal(self)
+
 
 class Terminal:
     terminal_id: str

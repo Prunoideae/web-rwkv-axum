@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fmt::Debug, sync::Arc};
 
 use anyhow::{Error, Result};
 use tokio::sync::{mpsc::Sender, oneshot};
@@ -97,5 +97,11 @@ impl AppState {
 
     pub fn softmax_blocking(&self, logits: Vec<Vec<f32>>) -> Vec<Vec<f32>> {
         Softmax::blocking_softmax(logits, self.0.softmax_queue.clone())
+    }
+}
+
+impl Debug for AppState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("AppState").finish()
     }
 }
