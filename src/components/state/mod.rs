@@ -172,7 +172,11 @@ impl InferStates {
         }
         tokio::task::block_in_place(|| {
             self.0.pool.sync(src);
-            let src_state = self.0.states.get(src).unwrap();
+            let src_state = self
+                .0
+                .states
+                .get(src)
+                .ok_or(Error::msg("State was deleted after it is synced!"))?;
             let dst_state = if !shallow {
                 src_state.clone_new(dst.to_string())?
             } else {

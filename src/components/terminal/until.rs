@@ -1,8 +1,4 @@
-use std::collections::HashSet;
-
 use anyhow::{Error, Result};
-use nohash_hasher::BuildNoHashHasher;
-use rayon::prelude::*;
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -26,7 +22,7 @@ struct UntilData {
 impl Terminal for UntilTerminal {
     fn terminate(&mut self, result: &Vec<u16>, token_count: usize) -> Result<bool> {
         Ok(self.cap.unwrap_or(usize::MAX) <= token_count
-            && String::from_utf8_lossy(&self.state.0.tokenizer.decode(&result)?)
+            || String::from_utf8_lossy(&self.state.0.tokenizer.decode(&result)?)
                 .contains(&self.until))
     }
 
