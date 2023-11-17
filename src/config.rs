@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::PathBuf};
 
-use anyhow::{Ok, Result};
+use anyhow::Result;
 use memmap2::Mmap;
 use tokio::{
     fs::File,
@@ -123,23 +123,23 @@ impl ModelSpec {
         Ok(context.build().await?)
     }
 
-    fn parse_quant_string(quant: String, model_info: &ModelInfo) -> HashMap<usize, Quant> {
+    fn parse_quant(quant: Option<String>, model_info: &ModelInfo) -> HashMap<usize, Quant> {
         let mut quants = HashMap::new();
 
         for layer in 0..model_info.num_layer {
             quants.insert(layer, Quant::None);
         }
 
-        if !quant.is_empty() {
-            for parts in quant.split(',') {
-                let mut parts = parts.split('-');
-                let layer = parts.next().unwrap().parse().unwrap();
-                let quant = match parts.next().unwrap() {
-                    "int8" => Quant::Int8,
-                    "nf4" => Quant::NFloat4,
-                    _ => Quant::None,
-                };
-                quants.insert(layer, quant);
+        if let Some(quant) = quant {
+            for (index, quant) in quant.chars().map(|x| x.to_string().parse()).enumerate() {
+                quants.insert(
+                    index,
+                    match quant {
+                        Ok(1) => Quant::Int8,
+                        Ok(2) => Quant::NF4,
+                        _ => Quant::None,
+                    },
+                );
             }
         }
         quants
@@ -150,8 +150,7 @@ impl ModelSpec {
         let map = unsafe { Mmap::map(&file)? };
         let info = Loader::info(&map)?;
 
-        let quants =
-            ModelSpec::parse_quant_string(self.quantization.clone().unwrap_or_default(), &info);
+        let quants = ModelSpec::parse_quant(self.quantization.clone(), &info);
 
         Ok(match info.version {
             V4 => AxumModel::V4(

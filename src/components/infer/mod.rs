@@ -96,11 +96,6 @@ impl SamplePipeline {
     /// Should call this in blocking as it can be computation heavy
     pub fn update_blind(&mut self, tokens: &Vec<Vec<u16>>) -> Result<(), InferenceInterruption> {
         self.sampler.lock().unwrap().update(tokens)?;
-        if self.transformers.len() != tokens.len() {
-            return Err(InferenceInterruption::Error(Error::msg(
-                "Transformer/tokens batch size mismatch!",
-            )));
-        }
         self.transformers
             .par_iter_mut()
             .zip(tokens.par_iter())

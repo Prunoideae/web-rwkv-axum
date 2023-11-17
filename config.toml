@@ -37,7 +37,11 @@ preference = "HighPerformance"
 # adapter = 0
 # Quantize a certain layer of the model, a bit flag.
 # If omitted, no quantization is done.
-# quantization = 4
+# Each character in the string represents a layer's quantification
+# config, 1=int8, 2=nf4, others=none.
+# Example here quantifies the first 28 layers with nf4, last 4
+# layers are fp16.
+quantization = "22222222222222222222222222220000"
 # Max tokens that can be inferred in one infer request
 # This is use to set a hard cap for the infer, so request with
 # potentially unending condition can still return.
