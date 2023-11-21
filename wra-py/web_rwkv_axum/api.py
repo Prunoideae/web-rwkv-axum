@@ -58,9 +58,13 @@ class Session:
             raise RuntimeError("Not connected to server yet!")
 
         echo_id = str(randint(0, 2**31))
+        while echo_id in self._echoes:
+            echo_id = str(randint(0, 2**31))
         event = asyncio.Event()
         self._echoes[echo_id] = event
-        await self._ws.send(ujson.dumps({"echo_id": echo_id, "command": command, "data": payload}))
+        await self._ws.send(
+            ujson.dumps({"echo_id": echo_id, "command": command, "data": payload})
+        )
         await event.wait()
         return getattr(event, "__response")
 
@@ -77,8 +81,8 @@ class Session:
 
     async def _listen(self):
         try:
-            while True:
-                response = Response.from_json(await self._ws.recv())
+            async for message in self._ws:
+                response = Response.from_json(message)
                 if (event := self._echoes.get(response.echo_id)) != None:
                     setattr(event, "__response", response)
                     event.set()

@@ -40,6 +40,7 @@ toml = "0.7.6"
 web-rwkv = { git = 'https://github.com/cryscan/web-rwkv', branch = "nf4" }
 
 [profile.release]
+panic = "abort"
 
 [lib]
 name = "web_rwkv_axum"

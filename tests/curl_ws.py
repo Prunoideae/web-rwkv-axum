@@ -183,7 +183,7 @@ commands = [
             "data": {
                 "type_id": "lengthed",
                 "params": {
-                    "length": 64,
+                    "length": 16,
                 },
             },
         },
