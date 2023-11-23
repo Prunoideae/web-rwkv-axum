@@ -6,18 +6,15 @@ use web_rwkv::{context::Context, tokenizer::Tokenizer};
 
 use crate::{
     components::{
-        model::AxumModel, normalizer::Normalizers, sampler::Samplers, softmax::Softmax,
-        state::InferStates, terminal::Terminals, transformer::Transformers,
+        model::AxumModel, pipeline::Pipelines, softmax::Softmax, state::InferStates, Registry,
     },
     config::ModelConfig,
 };
 
 pub struct InnerState {
     pub config: ModelConfig,
-    pub samplers: Arc<Samplers>,
-    pub transformers: Arc<Transformers>,
-    pub terminals: Arc<Terminals>,
-    pub normalizers: Arc<Normalizers>,
+    pub pipelines: Arc<Pipelines>,
+    pub registry: Arc<Registry>,
     pub states: InferStates,
     softmax_queue: Sender<Vec<(Vec<f32>, oneshot::Sender<Vec<f32>>)>>,
     pub tokenizer: Arc<Tokenizer>,
@@ -39,10 +36,8 @@ impl AppState {
 
         Ok(AppState(Arc::new(InnerState {
             config: config.clone(),
-            samplers: Arc::new(Samplers::new()),
-            transformers: Arc::new(Transformers::new()),
-            terminals: Arc::new(Terminals::new()),
-            normalizers: Arc::new(Normalizers::new()),
+            pipelines: Arc::new(Pipelines::new()),
+            registry: Arc::new(Registry::new()),
             softmax_queue: softmax_sender,
             tokenizer: Arc::new(config.tokenizer.load_tokenizer().await?),
             context: context.clone(),
@@ -57,8 +52,7 @@ impl AppState {
         tokens: Vec<Vec<u16>>,
         token_probs: Option<Vec<u16>>,
     ) -> Result<Vec<Vec<f32>>> {
-        let flags = id.iter().map(|_| true).collect();
-        let mut ticket = self.0.states.create_ticket(id, flags).await?;
+        let mut ticket = self.0.states.create_ticket(id).await?;
         let logits = ticket.infer(tokens).await;
         if let Some(token_probs) = token_probs {
             let probs = self.softmax(logits).await;

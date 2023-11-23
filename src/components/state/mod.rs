@@ -40,23 +40,17 @@ pub struct InferTicket {
 impl InferTicket {
     fn create_ticket(
         states: Vec<NamedState>,
-        should_update: Vec<bool>,
         permit: OwnedSemaphorePermit,
     ) -> (Self, Vec<InferRequest>) {
         let mut sender_vec = Vec::with_capacity(states.len());
         let mut receiver_vec = Vec::with_capacity(states.len());
         let mut requests_vec = Vec::with_capacity(states.len());
-        for (state, should_update) in states.into_iter().zip(should_update.into_iter()) {
+        for state in states.into_iter() {
             let (token_sender, token_receiver) = mpsc::channel(256);
             let (logits_sender, logits_receiver) = mpsc::channel(256);
             sender_vec.push(token_sender);
             receiver_vec.push(logits_receiver);
-            requests_vec.push(InferRequest::new(
-                state,
-                token_receiver,
-                logits_sender,
-                should_update,
-            ));
+            requests_vec.push(InferRequest::new(state, token_receiver, logits_sender));
         }
         (
             InferTicket {
@@ -78,6 +72,10 @@ impl InferTicket {
             .into_iter()
             .map(|x| x.unwrap())
             .collect()
+    }
+
+    pub fn state_size(&self) -> usize {
+        self.token_senders.len()
     }
 }
 
@@ -108,11 +106,7 @@ impl InferStates {
         })))
     }
 
-    pub async fn create_ticket(
-        &self,
-        states: Vec<String>,
-        should_update: Vec<bool>,
-    ) -> Result<InferTicket> {
+    pub async fn create_ticket(&self, states: Vec<String>) -> Result<InferTicket> {
         let states = states
             .into_iter()
             .map(|x| {
@@ -131,7 +125,7 @@ impl InferStates {
             .acquire_many_owned(states.len() as u32)
             .await
             .unwrap();
-        let (ticket, request) = InferTicket::create_ticket(states, should_update, permit);
+        let (ticket, request) = InferTicket::create_ticket(states, permit);
         self.0.request_queue.send(request).await.unwrap();
         Ok(ticket)
     }
@@ -163,7 +157,7 @@ impl InferStates {
         Ok(())
     }
 
-    pub fn copy_state(&self, src: &str, dst: &str, shallow: bool) -> Result<()> {
+    pub fn copy_state(&self, src: &str, dst: &str, _shallow: bool) -> Result<()> {
         if self.0.states.contains_key(dst) {
             return Err(Error::msg("Destination state already exists!"));
         }
@@ -177,11 +171,7 @@ impl InferStates {
                 .states
                 .get(src)
                 .ok_or(Error::msg("State was deleted after it is synced!"))?;
-            let dst_state = if !shallow {
-                src_state.clone_new(dst.to_string())?
-            } else {
-                src_state.clone_shallow(dst.to_string())?
-            };
+            let dst_state = src_state.clone_new(dst.to_string())?;
             self.0.states.insert(dst.to_string(), dst_state);
             Ok::<(), Error>(())
         })?;

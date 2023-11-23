@@ -5,11 +5,8 @@ use serde_json::Value;
 use crate::{app::AppState, register_handlers};
 
 mod handle_infer;
-mod handle_normalizers;
-mod handle_samplers;
 mod handle_states;
-mod handle_terminals;
-mod handle_transformers;
+mod handle_pipeline;
 
 pub mod types;
 
@@ -32,30 +29,13 @@ impl TextCommand {
                 handle_states::update_state,
                 handle_states::delete_state,
                 handle_states::dump_state,
-                //Transformers
-                handle_transformers::create_transformer,
-                handle_transformers::copy_transformer,
-                handle_transformers::update_transformer,
-                handle_transformers::delete_transformer,
-                handle_transformers::reset_transformer,
-                //Samplers
-                handle_samplers::create_sampler,
-                handle_samplers::copy_sampler,
-                handle_samplers::update_sampler,
-                handle_samplers::delete_sampler,
-                handle_samplers::reset_sampler,
-                //Terminals
-                handle_terminals::create_terminal,
-                handle_terminals::copy_terminal,
-                handle_terminals::delete_terminal,
-                handle_terminals::reset_terminal,
-                //Normalizers
-                handle_normalizers::create_normalizer,
-                handle_normalizers::copy_normalizer,
-                handle_normalizers::delete_normalizer,
-                handle_normalizers::reset_normalizer,
                 //Infer
                 handle_infer::infer,
+                //Pipeline
+                handle_pipeline::create_pipeline,
+                handle_pipeline::copy_pipeline,
+                handle_pipeline::delete_pipeline,
+                handle_pipeline::reset_pipeline,
             ]
         )
     }

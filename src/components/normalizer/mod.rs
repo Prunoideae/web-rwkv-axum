@@ -42,7 +42,7 @@ impl Normalizers {
     }
 
     #[inline(always)]
-    fn create(
+    pub fn create(
         &self,
         key: &str,
         state: AppState,

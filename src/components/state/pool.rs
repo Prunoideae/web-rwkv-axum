@@ -35,7 +35,6 @@ pub struct InferRequest {
     state: NamedState,
     tokens: mpsc::Receiver<Vec<u16>>,
     callback: mpsc::Sender<Vec<f32>>,
-    update_state: bool,
 }
 
 struct InferIO {
@@ -46,7 +45,6 @@ struct InferIO {
 #[derive(Clone)]
 struct InferState {
     state: NamedState,
-    update_state: bool,
 }
 
 impl InferRequest {
@@ -54,13 +52,11 @@ impl InferRequest {
         state: NamedState,
         tokens: mpsc::Receiver<Vec<u16>>,
         callback: mpsc::Sender<Vec<f32>>,
-        update_state: bool,
     ) -> Self {
         Self {
             state,
             tokens,
             callback,
-            update_state,
         }
     }
 
@@ -70,10 +66,7 @@ impl InferRequest {
                 tokens: self.tokens,
                 callback: self.callback,
             },
-            InferState {
-                state: self.state,
-                update_state: self.update_state,
-            },
+            InferState { state: self.state },
         )
     }
 }
@@ -134,7 +127,7 @@ impl Slots {
                 .next()
             {
                 if let Some(state) = cache.put(index, state.clone()) {
-                    if state.update_state && state.state.is_valid() {
+                    if state.state.is_valid() {
                         state.state.back_from(&self.pool, index);
                     }
                 }
@@ -149,7 +142,7 @@ impl Slots {
                 .map(|(x, _)| *x)
             {
                 if let Some(state) = cache.put(index, state.clone()) {
-                    if state.update_state && state.state.is_valid() {
+                    if state.state.is_valid() {
                         state.state.back_from(&self.pool, index);
                     }
                 };
@@ -265,7 +258,7 @@ impl InferPool {
             .read()
             .unwrap()
             .iter()
-            .filter(|(_, state)| state.get_id() == state_id && state.update_state)
+            .filter(|(_, state)| state.get_id() == state_id)
             .next()
         {
             state.state.back_from(&self.0.pool, *index);

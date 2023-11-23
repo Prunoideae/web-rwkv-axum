@@ -19,22 +19,42 @@ async def main():
         ruleset = RuleSet("steps")
         title = heading(ruleset, 0, pre=ruleset.literal("Funding Proposal"))
         match_list = numbered_list(ruleset)
-        prompt = """Instruction: Translate input Romaji to Japanese.
+        prompt = """Instruction: Select the most appropriate expression from the list of expressions and explain why.
 
-Input:"""
-        mail = """ Nande haruhikage yatta no!?
-Response:"""
-        sampler = await session.samplers.create_sampler(Nucleus(temp=0.6, top_p=2.5))
-        terminal = await session.terminals.create_terminal(Lengthed(48))
+Input:
+Detrius: You sucks!
+Lupis: What?
+Available expressions: happy, sad, angry, confused, disgusted, disappointed, concerned, normal
+
+Response: The most appropriate expression for Lupis is angry, as Lupis feels insulted by Detrius.
+
+"""
+        mail = """Input:
+Detrius: Hey, do you know the guy akqwjrbui?
+Lupis: What?
+Available expressions: happy, sad, angry, confused, disgusted, disappointed, concerned, normal
+
+Response: The most appropriate expression for Lupis is"""
+
         state = await session.states.create_state(initial_prompt=prompt)
 
-        pipeline = session.infer.pipeline(
-            (state, []),
-            sampler=sampler,
-            terminal=terminal,
+        pipeline = await session.pipeline.create_pipeline(
+            transformers=[[]],
+            sampler=Nucleus(),
+            terminal=Lengthed(32),
         )
 
-        result = await pipeline.infer(mail, update_prompt=False)
+        result = await pipeline.infer(
+            states=[state],
+            tokens=mail,
+            update_prompt=False,
+        )
+        print(result.result)
+        print(result.ms_elapsed, result.inferred_token)
+        print(result.end_reason)
+
+        await result.continue_([["\n\nInput:"]])
+
         print(result.result)
         print(result.ms_elapsed, result.inferred_token)
         print(result.end_reason)
