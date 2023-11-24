@@ -83,18 +83,14 @@ impl InferTicket {
 pub struct InferStates(Arc<InnerStates>);
 
 impl InferStates {
-    pub async fn new(
-        config: &ModelConfig,
-        context: Context,
-        model: Arc<AxumModel>,
-    ) -> Result<Self> {
+    pub fn new(config: &ModelConfig, context: Context, model: Arc<AxumModel>) -> Result<Self> {
         let pool = InferPool::new(
             context.clone(),
             model.clone(),
             config.model.get_batch_size(),
             config.model.get_max_state_size(),
         );
-        let sender = pool.start_loop().await;
+        let sender = pool.start_loop();
         Ok(Self(Arc::new(InnerStates {
             context,
             model,
@@ -157,24 +153,21 @@ impl InferStates {
         Ok(())
     }
 
-    pub fn copy_state(&self, src: &str, dst: &str, _shallow: bool) -> Result<()> {
+    pub async fn copy_state(&self, src: &str, dst: &str, _shallow: bool) -> Result<()> {
         if self.0.states.contains_key(dst) {
             return Err(Error::msg("Destination state already exists!"));
         }
         if !self.0.states.contains_key(src) {
             return Err(Error::msg("Source state id doesn't exist!"));
         }
-        tokio::task::block_in_place(|| {
-            self.0.pool.sync(src);
-            let src_state = self
-                .0
-                .states
-                .get(src)
-                .ok_or(Error::msg("State was deleted after it is synced!"))?;
-            let dst_state = src_state.clone_new(dst.to_string())?;
-            self.0.states.insert(dst.to_string(), dst_state);
-            Ok::<(), Error>(())
-        })?;
+        self.0.pool.sync(src).await;
+        let src_state = self
+            .0
+            .states
+            .get(src)
+            .ok_or(Error::msg("State was deleted after it is synced!"))?;
+        let dst_state = src_state.clone_new(dst.to_string()).await?;
+        self.0.states.insert(dst.to_string(), dst_state);
         Ok(())
     }
 

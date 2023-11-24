@@ -42,7 +42,7 @@ impl AppState {
             tokenizer: Arc::new(config.tokenizer.load_tokenizer().await?),
             context: context.clone(),
             model: model.clone(),
-            states: InferStates::new(config, context.clone(), model.clone()).await?,
+            states: InferStates::new(config, context.clone(), model.clone())?,
         })))
     }
 

@@ -42,6 +42,7 @@ pub async fn copy_state(data: Option<Value>, state: AppState) -> Result<Value> {
             .0
             .states
             .copy_state(&source, &destination, shallow)
+            .await
             .map(|_| Value::Null)
     } else {
         Err(Error::msg(

@@ -13,7 +13,6 @@ use anyhow::{Error, Result};
 use itertools::Itertools;
 use rayon::prelude::*;
 
-
 pub struct Pipeline {
     transformers: Vec<Vec<Box<dyn Transformer>>>,
     sampler: Box<dyn Sampler>,
@@ -69,7 +68,7 @@ impl Pipeline {
 
         let logits = ticket.infer(tokens).await;
         let state_count = ticket.state_size();
-        let mut last_token = tokio::task::block_in_place(|| self.sample(logits, &state));
+        let mut last_token = self.sample(logits, &state).await;
         let mut inferred_tokens = vec![last_token];
 
         let end_reason = loop {
@@ -93,7 +92,7 @@ impl Pipeline {
                 Err(InferenceInterruption::Error(e)) => Err(e)?,
             }
             let logits = ticket.infer(token_vec).await;
-            last_token = tokio::task::block_in_place(|| self.sample(logits, &state));
+            last_token = self.sample(logits, &state).await;
             inferred_tokens.push(last_token)
         };
 
@@ -207,7 +206,7 @@ impl Pipeline {
         self.terminal.terminate(result, token_count)
     }
 
-    pub fn sample(&self, logits: Vec<Vec<f32>>, app_state: &AppState) -> u16 {
+    pub async fn sample(&self, logits: Vec<Vec<f32>>, app_state: &AppState) -> u16 {
         let logits = self
             .transformers
             .par_iter()
@@ -222,7 +221,7 @@ impl Pipeline {
         let logits = if let Some(normalizer) = &self.normalizer {
             normalizer.normalize(logits)
         } else {
-            app_state.softmax_blocking(logits)
+            app_state.softmax(logits).await
         };
         self.sampler.sample(logits)
     }

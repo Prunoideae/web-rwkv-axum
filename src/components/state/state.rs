@@ -84,10 +84,10 @@ impl NamedState {
         *self.0.valid.lock().await = false;
     }
 
-    pub fn clone_new(&self, id: String) -> Result<Self> {
+    pub async fn clone_new(&self, id: String) -> Result<Self> {
         Ok(Self(Arc::new(InnerState {
             id,
-            state: Arc::new(RwLock::new(self.0.state.blocking_read().clone())),
+            state: Arc::new(RwLock::new(self.0.state.read().await.clone())),
             valid: Mutex::new(true),
         })))
     }

@@ -1,13 +1,9 @@
-use std::{
-    num::NonZeroUsize,
-    sync::{Arc, RwLock},
-    thread::spawn,
-};
+use std::{num::NonZeroUsize, sync::Arc, thread::spawn};
 
 use itertools::Itertools;
 use lru::LruCache;
 use nohash_hasher::BuildNoHashHasher;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, RwLock};
 use web_rwkv::context::Context;
 
 use crate::components::model::{AxumModel, AxumModelState};
@@ -108,7 +104,7 @@ impl Slots {
             .collect_vec();
 
         let selected_slot = {
-            let mut cache = self.cache.write().unwrap();
+            let mut cache = self.cache.blocking_write();
             // Check if the state is in slot already
             if let Some(index) = empty_slots
                 .iter()
@@ -210,7 +206,7 @@ impl Slots {
     }
 
     /// Remove invalid tickets where IOs are closed.
-    fn clear(&mut self) {
+    fn cleanup(&mut self) {
         for io in self.ios.iter_mut() {
             // If the sender is dropped, then the ticket is no longer valid.
             if io.as_ref().is_some_and(|io| io.callback.is_closed()) {
@@ -251,17 +247,17 @@ impl InferPool {
         }))
     }
 
-    pub fn sync(&self, state_id: &str) {
+    pub async fn sync(&self, state_id: &str) {
         if let Some((index, state)) = self
             .0
             .cache
             .read()
-            .unwrap()
+            .await
             .iter()
             .filter(|(_, state)| state.get_id() == state_id)
             .next()
         {
-            state.state.back_from(&self.0.pool, *index);
+            state.state.back_from_async(&self.0.pool, *index).await;
         }
     }
 
@@ -272,7 +268,7 @@ impl InferPool {
         // This has an assumption that the batch is empty.
         while let Some(requests) = queue.blocking_recv() {
             // Clear up the slots to remove done requests (sender closed)
-            slots.clear();
+            slots.cleanup();
             requests
                 .into_iter()
                 .for_each(|request| slots.insert(request));
@@ -284,7 +280,7 @@ impl InferPool {
 
                 // Try to receive more requests, note this is guarded by
                 // a semaphore elsewhere
-                slots.clear();
+                slots.cleanup();
                 while let Ok(requests) = queue.try_recv() {
                     requests
                         .into_iter()
@@ -298,7 +294,7 @@ impl InferPool {
         }
     }
 
-    pub async fn start_loop(&self) -> mpsc::Sender<Vec<InferRequest>> {
+    pub fn start_loop(&self) -> mpsc::Sender<Vec<InferRequest>> {
         let (sender, receiver) = mpsc::channel(self.0.batch_size);
         let looped = self.clone();
         spawn(move || {
