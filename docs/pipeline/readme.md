@@ -14,3 +14,5 @@ A pipeline contains 4 components, which are:
 All components are owned by the pipeline, so you *can not* modify any of them after the pipeline is built, however, you can always create more pipelines.
 
 A pipeline and its components is stateful. So, the pipeline will retain its state between infer requests. If you have a penalty set up, and inferred some tokens, then next inference you request will start with the previously accumulated penalties. You can always copy a pipeline from an original pipeline, or reset a pipeline's state, however.
+
+The pipeline is *decoupled* with the states which are requested independently. The pipeline is only for managing all components it holds.

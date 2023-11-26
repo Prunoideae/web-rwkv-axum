@@ -1,12 +1,12 @@
 #
 
-## `copy_state`
+## `copy_pipeline`
 
-This command copies a state to create a new state with the ID specified.
+This commands copies a pipeline to create a new pipeline with the ID specified.
 
 If the source doesn't exist, or the destination already exists, an error will be returned.
 
-This command is `synced`, which means that it will force a download from the pooled GPU memory (if there is any) to ensure that the state copied is fresh.
+The copy will also copy the internal state of the pipeline, so things like penalties etc will be copied to the new pipeline.
 
 ## Example
 
@@ -15,11 +15,11 @@ This command is `synced`, which means that it will force a download from the poo
 ```jsonc
 {
     "echo_id": ...,
-    "command": "copy_state",
+    "command": "copy_pipeline",
 
     "data": {
-        "source": "state1_backup",
-        "destination": "state1",
+        "source": "pipeline1_backup",
+        "destination": "pipeline1",
     }
 }
 ```
