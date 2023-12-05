@@ -121,6 +121,7 @@ impl InferStates {
             .acquire_many_owned(states.len() as u32)
             .await
             .unwrap();
+
         let (ticket, request) = InferTicket::create_ticket(states, permit);
         self.0.request_queue.send(request).await.unwrap();
         Ok(ticket)
@@ -173,10 +174,7 @@ impl InferStates {
 
     pub async fn delete_state(&self, state_id: &str) -> Result<()> {
         match self.0.states.remove(state_id) {
-            Some((_, state)) => {
-                state.invalidate_async().await;
-                Ok(())
-            }
+            Some(_) => Ok(()),
             None => Err(Error::msg("State ID does not exist!")),
         }
     }

@@ -123,9 +123,7 @@ impl Slots {
                 .next()
             {
                 if let Some(state) = cache.put(index, state.clone()) {
-                    if state.state.is_valid() {
-                        state.state.back_from(&self.pool, index);
-                    }
+                    state.state.back_from(&self.pool, index);
                 }
                 state.state.load_to(&self.pool, index);
                 index
@@ -138,9 +136,7 @@ impl Slots {
                 .map(|(x, _)| *x)
             {
                 if let Some(state) = cache.put(index, state.clone()) {
-                    if state.state.is_valid() {
-                        state.state.back_from(&self.pool, index);
-                    }
+                    state.state.back_from(&self.pool, index);
                 };
                 state.state.load_to(&self.pool, index);
                 index
@@ -166,7 +162,8 @@ impl Slots {
                         // blocking here makes the infer more batched.
                         io.tokens.blocking_recv()
                     } else {
-                        // We also peek into the tokens.
+                        // We also peek into the tokens in case if there are more
+                        // weird requirements.
                         io.tokens.try_recv().ok()
                     }
                 } {
@@ -183,7 +180,9 @@ impl Slots {
             return;
         }
         for (index, logits) in model
-            .infer(&mut self.tokens_cache, &self.pool)
+            // We only run one time now, instead of infer at least one tokens
+            // So performance can be increased in case more requests are coming in
+            .run(&mut self.tokens_cache, &self.pool)
             .unwrap()
             .into_iter()
             .enumerate()
@@ -273,9 +272,8 @@ impl InferPool {
                 .into_iter()
                 .for_each(|request| slots.insert(request));
             loop {
-                // Infer till at least 1 slot is done, this blocks on all
-                // active infer requests to wait for token input from all
-                // requests
+                // Run for one run, this blocks on all active infer requests
+                // to wait for token input from all requests
                 slots.infer(&self.0.model);
 
                 // Try to receive more requests, note this is guarded by

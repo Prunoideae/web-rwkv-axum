@@ -77,7 +77,7 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
     drop(lock);
 
     Ok(serde_json::to_value(InferResponse {
-        prompt_tokens: prompt_tokens,
+        prompt_tokens,
         inferred_tokens: inferred_tokens.len(),
         result: String::from_utf8_lossy(&state.0.tokenizer.decode(&inferred_tokens)?).to_string(),
         last_token,

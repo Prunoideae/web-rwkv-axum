@@ -14,10 +14,10 @@ use itertools::Itertools;
 use rayon::prelude::*;
 
 pub struct Pipeline {
-    transformers: Vec<Vec<Box<dyn Transformer>>>,
-    sampler: Box<dyn Sampler>,
-    terminal: Box<dyn Terminal>,
-    normalizer: Option<Box<dyn Normalizer>>,
+    pub(super) transformers: Vec<Vec<Box<dyn Transformer>>>,
+    pub(super) sampler: Box<dyn Sampler>,
+    pub(super) terminal: Box<dyn Terminal>,
+    pub(super) normalizer: Option<Box<dyn Normalizer>>,
 }
 
 impl Clone for Pipeline {

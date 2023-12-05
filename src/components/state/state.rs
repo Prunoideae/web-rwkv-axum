@@ -1,6 +1,6 @@
 use anyhow::Result;
 use std::{path::PathBuf, sync::Arc};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::RwLock;
 
 use web_rwkv::context::Context;
 
@@ -11,7 +11,6 @@ use super::serde;
 struct InnerState {
     id: String,
     state: Arc<RwLock<AxumBackedState>>,
-    valid: Mutex<bool>,
 }
 
 #[derive(Clone)]
@@ -29,7 +28,6 @@ impl NamedState {
             state: Arc::new(RwLock::new(AxumBackedState::new(
                 &context, &model, chunk_size,
             ))),
-            valid: Mutex::new(true),
         }))
     }
 
@@ -38,7 +36,6 @@ impl NamedState {
         Ok(Self(Arc::new(InnerState {
             id,
             state: Arc::new(RwLock::new(state)),
-            valid: Mutex::new(true),
         })))
     }
 
@@ -68,27 +65,10 @@ impl NamedState {
         &self.0.id
     }
 
-    pub fn is_valid(&self) -> bool {
-        *self.0.valid.blocking_lock()
-    }
-
-    pub async fn is_valid_async(&self) -> bool {
-        *self.0.valid.lock().await
-    }
-
-    pub fn invalidate(&self) {
-        *self.0.valid.blocking_lock() = false
-    }
-
-    pub async fn invalidate_async(&self) {
-        *self.0.valid.lock().await = false;
-    }
-
     pub async fn clone_new(&self, id: String) -> Result<Self> {
         Ok(Self(Arc::new(InnerState {
             id,
             state: Arc::new(RwLock::new(self.0.state.read().await.clone())),
-            valid: Mutex::new(true),
         })))
     }
 
@@ -96,7 +76,6 @@ impl NamedState {
         Ok(Self(Arc::new(InnerState {
             id,
             state: Arc::new(RwLock::new(self.0.state.read().await.clone())),
-            valid: Mutex::new(true),
         })))
     }
 
@@ -104,7 +83,6 @@ impl NamedState {
         Ok(Self(Arc::new(InnerState {
             id,
             state: self.0.state.clone(),
-            valid: Mutex::new(true),
         })))
     }
 }

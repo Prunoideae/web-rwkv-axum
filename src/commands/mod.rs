@@ -36,6 +36,7 @@ impl TextCommand {
                 handle_pipeline::copy_pipeline,
                 handle_pipeline::delete_pipeline,
                 handle_pipeline::reset_pipeline,
+                handle_pipeline::modify_pipeline,
             ]
         )
     }

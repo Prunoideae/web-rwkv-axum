@@ -10,10 +10,11 @@ use crate::app::AppState;
 
 use self::pipeline::Pipeline;
 
+pub mod mutate;
 pub mod pipeline;
 
 #[derive(Debug, Deserialize)]
-struct IdParam {
+pub struct IdParam {
     type_id: String,
     params: Option<Value>,
 }
@@ -108,22 +109,25 @@ impl Pipelines {
         Ok(())
     }
 
-    pub async fn copy_pipeline(&self, src: &str, dst: String) -> Result<()> {
-        if self.map.contains_key(&dst) {
-            return Err(Error::msg("Destination pipeline id exists."));
-        }
-
-        let pipeline = Arc::new(Mutex::new(
+    pub fn pop_pipeline(&self, id: &str) -> Result<Pipeline> {
+        Ok(Arc::try_unwrap(
             self.map
-                .get(src)
-                .ok_or(Error::msg("Source pipeline id does not exist."))?
-                .lock()
-                .await
-                .clone(),
-        ));
-        self.map.insert(dst, pipeline);
+                .remove(id)
+                .ok_or(Error::msg("Pipeline ID does not exist."))?
+                .1,
+        )
+        .map_err(|_| Error::msg("Pipeline is still held by inferences."))?
+        .into_inner())
+    }
 
-        Ok(())
+    pub async fn copy_pipeline(&self, src: &str) -> Result<Pipeline> {
+        Ok(self
+            .map
+            .get(src)
+            .ok_or(Error::msg("Source pipeline id does not exist."))?
+            .lock()
+            .await
+            .clone())
     }
 
     pub fn get_pipeline(&self, id: &str) -> Result<Arc<Mutex<Pipeline>>> {
@@ -132,5 +136,19 @@ impl Pipelines {
             .get(id)
             .ok_or(Error::msg("Source pipeline id does not exist."))?
             .clone())
+    }
+
+    pub fn set_pipeline(&self, id: &str, pipeline: Pipeline) -> Result<()> {
+        if self.has_pipeline(id) {
+            return Err(Error::msg("Pipeline ID exists."));
+        }
+        self.map
+            .insert(id.to_string(), Arc::new(Mutex::new(pipeline)));
+        Ok(())
+    }
+
+    #[inline(always)]
+    pub fn has_pipeline(&self, id: &str) -> bool {
+        self.map.contains_key(id)
     }
 }
