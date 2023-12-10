@@ -67,12 +67,12 @@ impl AxumBackedStateRepr {
 pub async fn dump_state(state: &AxumBackedState, path: PathBuf) -> Result<()> {
     let repr = AxumBackedStateRepr::new(state);
     let mut file = File::create(path).await?;
-    file.write(&bson::to_vec(&repr)?).await?;
+    file.write_all(&serde_cbor::to_vec(&repr)?).await?;
     Ok(())
 }
 
 pub async fn load_state(path: PathBuf) -> Result<AxumBackedState> {
     let mut buf = Vec::with_capacity(1024 * 1024 * 16);
     File::open(path).await?.read_to_end(&mut buf).await?;
-    Ok((bson::from_slice::<AxumBackedStateRepr>(&buf)?).into_state())
+    Ok((serde_cbor::from_slice::<AxumBackedStateRepr>(&buf)?).into_state())
 }

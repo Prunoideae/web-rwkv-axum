@@ -1,8 +1,7 @@
 use anyhow::{Error, Result};
-use std::sync::Arc;
-use tokio::sync::Mutex;
+use std::{collections::HashMap, sync::Arc};
+use tokio::sync::{Mutex, RwLock};
 
-use dashmap::DashMap;
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -29,17 +28,17 @@ struct PipelinePayload {
 }
 
 pub struct Pipelines {
-    map: DashMap<String, Arc<Mutex<Pipeline>>>,
+    map: RwLock<HashMap<String, Arc<Mutex<Pipeline>>>>,
 }
 
 impl Pipelines {
     pub fn new() -> Self {
         Self {
-            map: DashMap::with_capacity(128),
+            map: RwLock::new(HashMap::with_capacity(128)),
         }
     }
 
-    pub fn create_pipeline(&self, state: &AppState, payload: Value) -> Result<()> {
+    pub async fn create_pipeline(&self, state: &AppState, payload: Value) -> Result<()> {
         let PipelinePayload {
             id,
             transformers,
@@ -48,7 +47,7 @@ impl Pipelines {
             normalizer,
         } = serde_json::from_value(payload)?;
 
-        if self.map.contains_key(&id) {
+        if self.has_pipeline(&id).await {
             return Err(Error::msg("Pipeline id exists!"));
         }
 
@@ -89,66 +88,63 @@ impl Pipelines {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        self.map.insert(
-            id,
-            Arc::new(Mutex::new(Pipeline::new(
-                transformers,
-                sampler,
-                terminal,
-                normalizer,
-            ))),
-        );
+        self.set_pipeline(
+            &id,
+            Pipeline::new(transformers, sampler, terminal, normalizer),
+        )
+        .await?;
 
         Ok(())
     }
 
-    pub fn remove_pipeline(&self, id: &str) -> Result<()> {
+    pub async fn remove_pipeline(&self, id: &str) -> Result<()> {
         self.map
+            .write()
+            .await
             .remove(id)
             .ok_or(Error::msg("Pipeline ID does not exist."))?;
         Ok(())
     }
 
-    pub fn pop_pipeline(&self, id: &str) -> Result<Pipeline> {
+    pub async fn pop_pipeline(&self, id: &str) -> Result<Pipeline> {
         Ok(Arc::try_unwrap(
             self.map
+                .write()
+                .await
                 .remove(id)
-                .ok_or(Error::msg("Pipeline ID does not exist."))?
-                .1,
+                .ok_or(Error::msg("Pipeline ID does not exist."))?,
         )
         .map_err(|_| Error::msg("Pipeline is still held by inferences."))?
         .into_inner())
     }
 
     pub async fn copy_pipeline(&self, src: &str) -> Result<Pipeline> {
-        Ok(self
-            .map
-            .get(src)
-            .ok_or(Error::msg("Source pipeline id does not exist."))?
-            .lock()
-            .await
-            .clone())
+        Ok(self.get_pipeline(src).await?.lock().await.clone())
     }
 
-    pub fn get_pipeline(&self, id: &str) -> Result<Arc<Mutex<Pipeline>>> {
+    pub async fn get_pipeline(&self, id: &str) -> Result<Arc<Mutex<Pipeline>>> {
         Ok(self
             .map
+            .read()
+            .await
             .get(id)
             .ok_or(Error::msg("Source pipeline id does not exist."))?
             .clone())
     }
 
-    pub fn set_pipeline(&self, id: &str, pipeline: Pipeline) -> Result<()> {
-        if self.has_pipeline(id) {
+    pub async fn set_pipeline(&self, id: &str, pipeline: Pipeline) -> Result<()> {
+        if self.has_pipeline(id).await {
             return Err(Error::msg("Pipeline ID exists."));
         }
         self.map
+            .write()
+            .await
             .insert(id.to_string(), Arc::new(Mutex::new(pipeline)));
         Ok(())
     }
 
     #[inline(always)]
-    pub fn has_pipeline(&self, id: &str) -> bool {
-        self.map.contains_key(id)
+    pub async fn has_pipeline(&self, id: &str) -> bool {
+        self.map.read().await.contains_key(id)
     }
 }

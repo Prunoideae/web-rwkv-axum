@@ -37,6 +37,9 @@ class State:
             else None
         )
 
+    async def dump(self, dump_id: str) -> None:
+        await self._states.dump_state(self, dump_id)
+
 
 class States:
     def __init__(self, session: "Session") -> None:

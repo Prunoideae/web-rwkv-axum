@@ -1,6 +1,6 @@
 use std::{fmt::Debug, sync::Arc};
 
-use anyhow::{Error, Result};
+use anyhow::Result;
 use tokio::sync::{mpsc::Sender, oneshot};
 use web_rwkv::{context::Context, tokenizer::Tokenizer};
 
@@ -68,9 +68,7 @@ impl AppState {
     pub async fn dump_state(&self, id: String, dump_id: String) -> Result<()> {
         self.0
             .states
-            .get_state(&id)
-            .ok_or(Error::msg("State not found!"))?
-            .dump(self.0.config.axum.state_dump.join(dump_id))
+            .dump_state(&id, self.0.config.axum.state_dump.join(dump_id))
             .await
     }
 

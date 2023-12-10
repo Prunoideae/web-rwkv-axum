@@ -14,3 +14,4 @@ perf.data.old
 # Utils
 convert_safetensors.py
 config.used.toml
+wra-py/tests/test_pipeline_1.py

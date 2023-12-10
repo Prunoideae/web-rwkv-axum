@@ -12,10 +12,8 @@ async-trait = "0.1.73"
 axum = { version = "0.6.20", features = ["ws"] }
 bit-set = "0.5.3"
 bnf_sampler = "0.3.5"
-bson = "2.7.0"
 clap = { version = "4.4.1", features = ["derive"] }
 console-subscriber = "0.2.0"
-dashmap = { version = "5.5.3", features = ["rayon", "serde"] }
 faer = { version = "0.13.5", features = ["ndarray"] }
 fastrand = "2.0.0"
 futures = "0.3.28"
@@ -34,6 +32,7 @@ rand = "0.8.5"
 rayon = "1.7.0"
 rustc-hash = "1.1.0"
 serde = "1.0.188"
+serde_cbor = "0.11.2"
 serde_json = "1.0.105"
 tokio = { version = "1.32.0", features = ["full"] }
 toml = "0.7.6"

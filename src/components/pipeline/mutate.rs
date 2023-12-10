@@ -42,15 +42,17 @@ impl Modification {
                     .transformers
                     .get_mut(state_index)
                     .ok_or(Error::msg("State slot does not exist!"))?;
-                if to_be_modified.len() >= transformer_index {
-                    return Err(Error::msg("Transformer slot does not exist!"));
-                }
+
                 let transformer =
                     state
                         .0
                         .registry
                         .create_transformer(&type_id, state.clone(), params)?;
-                to_be_modified[transformer_index] = transformer;
+                if to_be_modified.len() >= transformer_index {
+                    to_be_modified[transformer_index] = transformer;
+                } else {
+                    to_be_modified.push(transformer)
+                }
             }
             Modification::ReplaceSampler(IdParam { type_id, params }) => {
                 let sampler = state
@@ -75,9 +77,10 @@ impl Modification {
                     .get_mut(state_index)
                     .ok_or(Error::msg("State slot does not exist!"))?;
                 if to_be_removed.len() >= transformer_index {
-                    return Err(Error::msg("Transformer slot does not exist!"));
+                    to_be_removed.remove(transformer_index);
+                } else {
+                    to_be_removed.pop();
                 }
-                to_be_removed.remove(transformer_index);
             }
         }
         Ok(())

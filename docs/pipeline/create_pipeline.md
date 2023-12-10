@@ -17,7 +17,7 @@ For how to specify each component, check out the corresponding sub-directory. Th
 ```jsonc
 {
     "echo_id": ...,
-    "command": "create_state",
+    "command": "create_pipeline",
     
     "data":{
         // Specify the ID of the pipeline.

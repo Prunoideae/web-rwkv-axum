@@ -55,7 +55,7 @@ pub async fn infer(data: Option<Value>, state: AppState) -> Result<Value> {
     )
     .await??;
 
-    let pipeline = state.0.pipelines.get_pipeline(&pipeline)?;
+    let pipeline = state.0.pipelines.get_pipeline(&pipeline).await?;
 
     let mut lock = pipeline.lock().await;
     let update_setting = UpdateSetting::from_value(&lock.get_transformer_shape(), update_prompt)?;

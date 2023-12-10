@@ -17,7 +17,7 @@ pub async fn create_state(data: Option<Value>, state: AppState) -> Result<Value>
     )?;
     match dump_id {
         Some(dump_id) => state.load_state(id, dump_id).await?,
-        None => state.0.states.create_state(id.as_str())?,
+        None => state.0.states.create_state(id.as_str()).await?,
     };
     Ok(Value::Null)
 }
