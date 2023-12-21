@@ -1,7 +1,10 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::Result;
+use futures_util::{stream, StreamExt};
+
 use memmap2::Mmap;
+
 use tokio::{
     fs::File,
     io::{AsyncReadExt, BufReader},
@@ -12,7 +15,7 @@ use web_rwkv::{
     context::{Context, ContextBuilder, Instance},
     model::{
         loader::Loader,
-        ModelBuilder, ModelInfo,
+        Lora, LoraBlend, LoraBlendPattern, ModelBuilder, ModelInfo,
         ModelVersion::{V4, V5},
         Quant,
     },
@@ -70,6 +73,34 @@ mod props {
     }
 }
 
+#[derive(Deserialize, Debug, Clone)]
+struct BlendConfig {
+    pattern: String,
+    alpha: f32,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+struct LoraConfig {
+    path: PathBuf,
+    blends: Vec<BlendConfig>,
+}
+
+impl LoraConfig {
+    async fn load(&self) -> Result<Lora> {
+        let mut data = Vec::new();
+        File::open(&self.path).await?.read_to_end(&mut data).await?;
+        Ok(Lora {
+            data,
+            blend: LoraBlend(
+                self.blends
+                    .iter()
+                    .map(|BlendConfig { pattern, alpha }| LoraBlendPattern::new(pattern, *alpha))
+                    .collect::<Result<_>>()?,
+            ),
+        })
+    }
+}
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct ModelSpec {
     path: PathBuf,
@@ -83,6 +114,7 @@ pub struct ModelSpec {
     adapter: Option<usize>,
     quantization: Option<String>,
     max_infer_tokens: Option<usize>,
+    lora_config: Option<Vec<LoraConfig>>,
 }
 
 impl ModelSpec {
@@ -151,24 +183,36 @@ impl ModelSpec {
         let info = Loader::info(&map)?;
 
         let quants = ModelSpec::parse_quant(self.quantization.clone(), &info);
+        let loras = stream::iter(self.lora_config.clone().unwrap_or(Vec::new()))
+            .then(|x| async move { x.load().await })
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>>>()?;
 
         Ok(match info.version {
-            V4 => AxumModel::V4(
-                ModelBuilder::new(context, &map)
+            V4 => AxumModel::V4({
+                let mut builder = ModelBuilder::new(context, &map)
                     .with_token_chunk_size(self.get_chunk_size())
                     .with_head_chunk_size(8192)
                     .with_quant(quants)
-                    .with_turbo(true)
-                    .build()?,
-            ),
-            V5 => AxumModel::V5(
-                ModelBuilder::new(context, &map)
+                    .with_turbo(true);
+                for lora in loras {
+                    builder = builder.add_lora(lora)
+                }
+                builder.build()?
+            }),
+            V5 => AxumModel::V5({
+                let mut builder = ModelBuilder::new(context, &map)
                     .with_token_chunk_size(self.get_chunk_size())
                     .with_head_chunk_size(8192)
                     .with_quant(quants)
-                    .with_turbo(true)
-                    .build()?,
-            ),
+                    .with_turbo(true);
+                for lora in loras {
+                    builder = builder.add_lora(lora)
+                }
+                builder.build()?
+            }),
         })
     }
 }

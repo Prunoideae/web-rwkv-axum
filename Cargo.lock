@@ -2978,6 +2978,7 @@ dependencies = [
  "qp-trie",
  "rand",
  "rayon",
+ "regex",
  "rustc-hash",
  "serde",
  "serde_cbor",

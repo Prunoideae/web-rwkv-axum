@@ -46,6 +46,9 @@ quantization = "22222222222222222222222222220000"
 # This is use to set a hard cap for the infer, so request with
 # potentially unending condition can still return.
 max_infer_tokens = 256
+# Add lora for the model, multiple loras can be specified,
+# and different blends for a lora can be specified.
+# lora_configs = [{ path = "path", blends = [{ pattern = '.*', alpha = 0.1 }] }]
 
 [tokenizer]
 # Path to the vocab JSON.
