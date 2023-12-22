@@ -29,6 +29,7 @@ impl TextCommand {
                 handle_states::update_state,
                 handle_states::delete_state,
                 handle_states::dump_state,
+                handle_states::delete_dump,
                 //Infer
                 handle_infer::infer,
                 //Pipeline

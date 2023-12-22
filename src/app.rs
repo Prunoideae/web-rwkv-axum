@@ -72,6 +72,13 @@ impl AppState {
             .await
     }
 
+    pub async fn delete_dump(&self, dump_id: String) -> Result<()> {
+        self.0
+            .states
+            .delete_dump(self.0.config.axum.state_dump.join(dump_id))
+            .await
+    }
+
     pub async fn load_state(&self, id: String, dump_id: String) -> Result<()> {
         self.0
             .states

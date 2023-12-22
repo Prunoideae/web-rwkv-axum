@@ -5,7 +5,10 @@ use futures_util::{
     future::join_all,
     stream::{self, StreamExt},
 };
-use tokio::sync::{mpsc, OwnedSemaphorePermit, RwLock, Semaphore};
+use tokio::{
+    fs,
+    sync::{mpsc, OwnedSemaphorePermit, RwLock, Semaphore},
+};
 use web_rwkv::context::Context;
 
 use crate::config::ModelConfig;
@@ -180,6 +183,11 @@ impl InferStates {
         }
         self.0.pool.sync(src).await;
         self.get_state(src).await.unwrap().dump(path).await?;
+        Ok(())
+    }
+
+    pub async fn delete_dump(&self, path: PathBuf) -> Result<()> {
+        fs::remove_file(path).await?;
         Ok(())
     }
 

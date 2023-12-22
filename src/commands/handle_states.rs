@@ -104,6 +104,17 @@ struct StateDump {
 pub async fn dump_state(data: Option<Value>, state: AppState) -> Result<Value> {
     let StateDump { state_id, dump_id } =
         serde_json::from_value(data.ok_or(Error::msg("Field empty!"))?)?;
+
     state.dump_state(state_id, dump_id).await?;
+    Ok(Value::Null)
+}
+
+#[inline]
+pub async fn delete_dump(data: Option<Value>, state: AppState) -> Result<Value> {
+    state
+        .delete_dump(serde_json::from_value(
+            data.ok_or(Error::msg("Field must be a string!"))?,
+        )?)
+        .await?;
     Ok(Value::Null)
 }
