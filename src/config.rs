@@ -1,7 +1,10 @@
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
-use anyhow::{Ok, Result};
+use anyhow::Result;
+use futures_util::{stream, StreamExt};
+
 use memmap2::Mmap;
+
 use tokio::{
     fs::File,
     io::{AsyncReadExt, BufReader},
@@ -12,9 +15,9 @@ use web_rwkv::{
     context::{Context, ContextBuilder, Instance},
     model::{
         loader::Loader,
-        LayerFlags, ModelBuilder,
+        Lora, LoraBlend, LoraBlendPattern, ModelBuilder, ModelInfo,
         ModelVersion::{V4, V5},
-        Quantization,
+        Quant,
     },
     tokenizer::Tokenizer,
     wgpu::{Adapter, Backends},
@@ -70,6 +73,34 @@ mod props {
     }
 }
 
+#[derive(Deserialize, Debug, Clone)]
+struct BlendConfig {
+    pattern: String,
+    alpha: f32,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+struct LoraConfig {
+    path: PathBuf,
+    blends: Vec<BlendConfig>,
+}
+
+impl LoraConfig {
+    async fn load(&self) -> Result<Lora> {
+        let mut data = Vec::new();
+        File::open(&self.path).await?.read_to_end(&mut data).await?;
+        Ok(Lora {
+            data,
+            blend: LoraBlend(
+                self.blends
+                    .iter()
+                    .map(|BlendConfig { pattern, alpha }| LoraBlendPattern::new(pattern, *alpha))
+                    .collect::<Result<_>>()?,
+            ),
+        })
+    }
+}
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct ModelSpec {
     path: PathBuf,
@@ -77,10 +108,13 @@ pub struct ModelSpec {
     max_batch_count: props::BatchSize,
     #[serde(default)]
     max_chunk_count: props::ChunkSize,
+    max_state_size: Option<usize>,
     max_concurrency: Option<usize>,
     preference: Option<props::Preference>,
     adapter: Option<usize>,
-    quantization: Option<u64>,
+    quantization: Option<String>,
+    max_infer_tokens: Option<usize>,
+    lora_config: Option<Vec<LoraConfig>>,
 }
 
 impl ModelSpec {
@@ -96,6 +130,14 @@ impl ModelSpec {
         self.max_concurrency.unwrap_or(8)
     }
 
+    pub fn get_max_state_size(&self) -> Option<usize> {
+        self.max_state_size
+    }
+
+    pub fn get_max_infer_tokens(&self) -> usize {
+        self.max_infer_tokens.unwrap_or(256)
+    }
+
     pub async fn select_adapter(&self, instance: &Instance) -> Result<Adapter> {
         if let Some(preference) = &self.preference {
             Ok(instance.adapter(preference.to_web_rwkv()).await?)
@@ -109,37 +151,68 @@ impl ModelSpec {
     pub async fn create_context(&self) -> Result<Context> {
         let adapter = self.select_adapter(&Instance::new()).await?;
         println!("{:?}", adapter.get_info());
-        let mut context = ContextBuilder::new(adapter).with_default_pipelines();
-        if self.quantization.is_some() {
-            println!("Using quantization.");
-            context = context.with_quant_pipelines();
-        }
+        let context = ContextBuilder::new(adapter).with_default_pipelines();
         Ok(context.build().await?)
+    }
+
+    fn parse_quant(quant: Option<String>, model_info: &ModelInfo) -> HashMap<usize, Quant> {
+        let mut quants = HashMap::new();
+
+        for layer in 0..model_info.num_layer {
+            quants.insert(layer, Quant::None);
+        }
+
+        if let Some(quant) = quant {
+            for (index, quant) in quant.chars().map(|x| x.to_string().parse()).enumerate() {
+                quants.insert(
+                    index,
+                    match quant {
+                        Ok(1) => Quant::Int8,
+                        Ok(2) => Quant::NF4,
+                        _ => Quant::None,
+                    },
+                );
+            }
+        }
+        quants
     }
 
     pub async fn load_model(&self, context: &Context) -> Result<AxumModel> {
         let file = File::open(&self.path).await?;
         let map = unsafe { Mmap::map(&file)? };
-        let quant = self
-            .quantization
-            .map(|bits| Quantization::Int8(LayerFlags::from_bits_retain(bits)))
-            .unwrap_or_default();
+        let info = Loader::info(&map)?;
 
-        Ok(match Loader::info(&map)?.version {
-            V4 => AxumModel::V4(
-                ModelBuilder::new(context, &map)
+        let quants = ModelSpec::parse_quant(self.quantization.clone(), &info);
+        let loras = stream::iter(self.lora_config.clone().unwrap_or(Vec::new()))
+            .then(|x| async move { x.load().await })
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(match info.version {
+            V4 => AxumModel::V4({
+                let mut builder = ModelBuilder::new(context, &map)
                     .with_token_chunk_size(self.get_chunk_size())
                     .with_head_chunk_size(8192)
-                    .with_quant(quant)
-                    .build()?,
-            ),
-            V5 => AxumModel::V5(
-                ModelBuilder::new(context, &map)
+                    .with_quant(quants)
+                    .with_turbo(true);
+                for lora in loras {
+                    builder = builder.add_lora(lora)
+                }
+                builder.build()?
+            }),
+            V5 => AxumModel::V5({
+                let mut builder = ModelBuilder::new(context, &map)
                     .with_token_chunk_size(self.get_chunk_size())
                     .with_head_chunk_size(8192)
-                    .with_quant(quant)
-                    .build()?,
-            ),
+                    .with_quant(quants)
+                    .with_turbo(true);
+                for lora in loras {
+                    builder = builder.add_lora(lora)
+                }
+                builder.build()?
+            }),
         })
     }
 }
@@ -162,7 +235,13 @@ impl TokenizerSpec {
 }
 
 #[derive(Debug, Deserialize, Clone)]
+pub struct AxumSpec {
+    pub state_dump: PathBuf,
+}
+
+#[derive(Debug, Deserialize, Clone)]
 pub struct ModelConfig {
     pub model: ModelSpec,
     pub tokenizer: TokenizerSpec,
+    pub axum: AxumSpec,
 }

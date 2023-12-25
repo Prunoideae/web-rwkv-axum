@@ -1,12 +1,12 @@
 #
 
-## `create_state`
+## `dump_state`
 
-This command creates a state with an ID specified.
+This command dumps a state to a dump on server storage.
 
-The ID must be unique, and it will be the identifier of any subsequent commands related to the state.
+Dumps can be overriden by dumping on a same dump id.
 
-If an ID already exists, an error will be returned.
+If the state ID does not exist, an error will be returned.
 
 ## Example
 
@@ -15,15 +15,13 @@ If an ID already exists, an error will be returned.
 ```jsonc
 {
     "echo_id": ...,
-    "command": "create_state",
+    "command": "dump_state",
 
     // Specify the ID of the state in a JSON string.
     // There's no limitation of the string, as long as you
     // can handle it.
     "data": {
-        "id": "infer_state_1",
-        // Load a dump from server hard drive instead of creating
-        // a blank state. Useful when you have a long, predefined prompt.
+        "state_id": "infer_state_1",
         "dump_id": "dump_id_1"
     }
 }

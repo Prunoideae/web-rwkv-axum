@@ -10,6 +10,8 @@ Note that the terminal does not affect sampling, so there's no guarantee that th
 
 ```jsonc
 {
-    "until": ...
+    "until": ...,
+    // A cap for generation so it won't stuck for too long (Optional)
+    "cap": 128
 }
 ```

@@ -12,7 +12,7 @@ pub struct LengthedTerminal {
 }
 
 impl Terminal for LengthedTerminal {
-    fn terminate(&mut self, _result: &str, token_count: usize) -> Result<bool> {
+    fn terminate(&mut self, _result: &Vec<u16>, token_count: usize) -> Result<bool> {
         Ok(token_count >= self.length)
     }
 

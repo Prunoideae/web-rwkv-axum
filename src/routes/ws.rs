@@ -32,9 +32,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
             Message::Text(text) => {
                 tokio::spawn(handle_command_text(state.clone(), sender.clone(), text));
             }
-            Message::Binary(bytes) => {
-                tokio::spawn(handle_command_bytes(state.clone(), sender.clone(), bytes));
-            }
+            Message::Binary(_) => break,
             Message::Close(_) => break,
             _ => (),
         }
@@ -54,7 +52,8 @@ async fn handle_command_text(
                     .lock()
                     .await
                     .send(Message::Text(
-                        serde_json::to_string(&CommandSuccess::new(command.echo_id, v, start)).unwrap(),
+                        serde_json::to_string(&CommandSuccess::new(command.echo_id, v, start))
+                            .unwrap(),
                     ))
                     .await
                     .ok();
@@ -76,51 +75,6 @@ async fn handle_command_text(
                 .await
                 .send(Message::Text(
                     serde_json::to_string(&CommandError::new_raw(Error::msg(
-                        "Malformed JSON payload. A payload must include echo_id, command and data!",
-                    )))
-                    .unwrap(),
-                ))
-                .await
-                .ok();
-        }
-    }
-}
-
-async fn handle_command_bytes(
-    state: AppState,
-    sender: Arc<Mutex<SplitSink<WebSocket, Message>>>,
-    payload: Vec<u8>,
-) {
-    let start = Instant::now();
-    match bson::from_slice::<TextCommand>(&payload) {
-        Ok(command) => match command.handle(state).await {
-            Ok(v) => {
-                sender
-                    .lock()
-                    .await
-                    .send(Message::Binary(
-                        bson::to_vec(&CommandSuccess::new(command.echo_id, v, start)).unwrap(),
-                    ))
-                    .await
-                    .ok();
-            }
-            Err(e) => {
-                sender
-                    .lock()
-                    .await
-                    .send(Message::Binary(
-                        bson::to_vec(&CommandError::new(command.echo_id, e)).unwrap(),
-                    ))
-                    .await
-                    .ok();
-            }
-        },
-        Err(_) => {
-            sender
-                .lock()
-                .await
-                .send(Message::Binary(
-                    bson::to_vec(&CommandError::new_raw(Error::msg(
                         "Malformed JSON payload. A payload must include echo_id, command and data!",
                     )))
                     .unwrap(),

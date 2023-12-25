@@ -10,7 +10,7 @@ pub trait Terminal: Send + Sync + Debug {
     /// However, this does not mean the generation itself is stopped -
     /// clients can still make autoregressive calls to continue the
     /// generation.
-    fn terminate(&mut self, result: &str, token_count: usize) -> Result<bool>;
+    fn terminate(&mut self, result: &Vec<u16>, token_count: usize) -> Result<bool>;
     /// Clears the `Terminal`. This will reset the internal state of the
     /// terminal to *when it is just constructed from params*.
     fn clear(&mut self) {}

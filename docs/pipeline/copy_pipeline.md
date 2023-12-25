@@ -1,10 +1,12 @@
 #
 
-## `copy_terminal`
+## `copy_pipeline`
 
-This command copies a terminal to create a new terminal with the ID specified.
+This commands copies a pipeline to create a new pipeline with the ID specified.
 
 If the source doesn't exist, or the destination already exists, an error will be returned.
+
+The copy will also copy the internal state of the pipeline, so things like penalties etc will be copied to the new pipeline.
 
 ## Example
 
@@ -13,11 +15,11 @@ If the source doesn't exist, or the destination already exists, an error will be
 ```jsonc
 {
     "echo_id": ...,
-    "command": "copy_terminal",
+    "command": "copy_pipeline",
 
     "data": {
-        "source": "terminal1_backup",
-        "destination": "terminal1",
+        "source": "pipeline1_backup",
+        "destination": "pipeline1",
     }
 }
 ```

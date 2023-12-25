@@ -8,7 +8,7 @@ Still under heavy development, PRs and suggestions are welcome.
 
 ## Testing
 
-- Run by `cargo run --release ./config.toml`. Wait for `Model is loaded!` to popup.
+- Run by `RUSTFLAGS="--cfg tokio_unstable" cargo run --release ./config.toml`. Wait for `Model is loaded!` to popup.
 - Run the `/tests/curl_ws.py "{any prompt input}"` in the `tests` folder.
 - Or, with now-implemented (but not published yet) Python API:
   - Build and install the package by running `python setup.py build && python setup.py install` in `wra-py`

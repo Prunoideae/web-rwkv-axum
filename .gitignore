@@ -10,3 +10,8 @@ perf.data.old
 /wra-py/build
 /wra-py/dist
 /wra-py/bnf_sampler
+
+# Utils
+convert_safetensors.py
+config.used.toml
+wra-py/tests/test_pipeline_1.py
