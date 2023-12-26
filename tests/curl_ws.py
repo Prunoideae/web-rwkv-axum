@@ -239,6 +239,7 @@ async def main():
                 "reset_on_exhaustion": True,
             },
         )
+        print(result)
         result = result["result"]
 
         elapsed = 0
