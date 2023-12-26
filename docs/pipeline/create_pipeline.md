@@ -66,7 +66,14 @@ For how to specify each component, check out the corresponding sub-directory. Th
             "type_id": ...,
             // The payload specifying params of it.
             "params": ...
-        }
+        },
+
+        // Specifies an initial prompt for *all transformers*
+        // to begin with.
+        "initial_prompt": [
+            ...,
+            ...
+        ]
     }
 }
 ```

@@ -328,7 +328,7 @@ dependencies = [
  "anyhow",
  "bit-set",
  "bnf",
- "itertools",
+ "itertools 0.11.0",
  "lazy_static",
  "memchr",
  "mimalloc",
@@ -847,19 +847,6 @@ checksum = "46303f565772937ffe1d394a4fac6f411c6013172fadde9dcdb1e147a086940e"
 dependencies = [
  "crc32fast",
  "miniz_oxide",
-]
-
-[[package]]
-name = "flume"
-version = "0.10.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1657b4441c3403d9f7b3409e47575237dac27b1b5726df654a6ecbf92f0f7577"
-dependencies = [
- "futures-core",
- "futures-sink",
- "nanorand",
- "pin-project",
- "spin",
 ]
 
 [[package]]
@@ -1462,6 +1449,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "itertools"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25db6b064527c5d482d0423354fcd07a89a2dfe07b67892e62411946db7f07b0"
+dependencies = [
+ "either",
+]
+
+[[package]]
 name = "itoa"
 version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1976,7 +1972,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "065717a5dfaca4a83d2fe57db3487b311365200000551d7a364e715dbf4346bc"
 dependencies = [
  "anyhow",
- "itertools",
+ "itertools 0.11.0",
  "proc-macro2",
  "quote",
  "syn 2.0.39",
@@ -2223,9 +2219,9 @@ checksum = "1ad4cc8da4ef723ed60bced201181d83791ad433213d8c24efffda1eec85d741"
 
 [[package]]
 name = "safetensors"
-version = "0.3.3"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d93279b86b3de76f820a8854dd06cbc33cfa57a417b19c47f6a25280112fb1df"
+checksum = "1659ef1c27917eb58c2d53664b5506d0b68c9cb9b460d3e0901011cf71269a8e"
 dependencies = [
  "serde",
  "serde_json",
@@ -2929,17 +2925,18 @@ checksum = "0d046c5d029ba91a1ed14da14dca44b68bf2f124cfbaf741c54151fdb3e0750b"
 
 [[package]]
 name = "web-rwkv"
-version = "0.3.12"
-source = "git+https://github.com/cryscan/web-rwkv?branch=nf4#e53a457a9a4f9c9ed4fb765017af893b3f432a0e"
+version = "0.4.9"
+source = "git+https://github.com/cryscan/web-rwkv#4a597277354bdf9455de0482a02e8f4098f8d39b"
 dependencies = [
  "ahash",
  "anyhow",
+ "async-trait",
  "bitflags 2.4.1",
  "bytemuck",
  "derive-getters",
- "flume 0.10.14",
+ "flume",
  "half 2.3.1",
- "itertools",
+ "itertools 0.12.0",
  "lazy_static",
  "log",
  "regex",
@@ -2966,7 +2963,7 @@ dependencies = [
  "fastrand",
  "futures",
  "futures-util",
- "itertools",
+ "itertools 0.11.0",
  "lazy_static",
  "lru",
  "maplit",
@@ -2991,7 +2988,7 @@ dependencies = [
 [[package]]
 name = "web-rwkv-derive"
 version = "0.2.0"
-source = "git+https://github.com/cryscan/web-rwkv?branch=nf4#e53a457a9a4f9c9ed4fb765017af893b3f432a0e"
+source = "git+https://github.com/cryscan/web-rwkv#4a597277354bdf9455de0482a02e8f4098f8d39b"
 dependencies = [
  "quote",
  "syn 2.0.39",
@@ -3015,7 +3012,7 @@ checksum = "30e7d227c9f961f2061c26f4cb0fbd4df0ef37e056edd0931783599d6c94ef24"
 dependencies = [
  "arrayvec",
  "cfg-if",
- "flume 0.11.0",
+ "flume",
  "js-sys",
  "log",
  "naga",

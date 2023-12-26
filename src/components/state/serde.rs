@@ -33,13 +33,13 @@ impl AxumBackedStateRepr {
         match state {
             AxumBackedState::V4(state) => Self::V4(StateV4 {
                 shape: state.shape,
-                data: state.data.clone(),
+                data: state.data.to_vec(),
             }),
             AxumBackedState::V5(state) => Self::V5(StateV5 {
                 max_batch: state.max_batch,
                 chunk_size: state.chunk_size,
                 head_size: state.head_size,
-                data: state.data.clone(),
+                data: state.data.to_vec(),
             }),
         }
     }
@@ -47,7 +47,10 @@ impl AxumBackedStateRepr {
     pub fn into_state(self) -> AxumBackedState {
         match self {
             AxumBackedStateRepr::V4(StateV4 { shape, data }) => {
-                AxumBackedState::V4(v4::BackedState { shape, data })
+                AxumBackedState::V4(v4::BackedState {
+                    shape,
+                    data: data.into(),
+                })
             }
             AxumBackedStateRepr::V5(StateV5 {
                 data,
@@ -58,7 +61,7 @@ impl AxumBackedStateRepr {
                 max_batch,
                 chunk_size,
                 head_size,
-                data,
+                data: data.into(),
             }),
         }
     }

@@ -16,7 +16,7 @@ use web_rwkv::{
     model::{
         loader::Loader,
         Lora, LoraBlend, LoraBlendPattern, ModelBuilder, ModelInfo,
-        ModelVersion::{V4, V5},
+        ModelVersion::{V4, V5, V6},
         Quant,
     },
     tokenizer::Tokenizer,
@@ -194,7 +194,6 @@ impl ModelSpec {
             V4 => AxumModel::V4({
                 let mut builder = ModelBuilder::new(context, &map)
                     .with_token_chunk_size(self.get_chunk_size())
-                    .with_head_chunk_size(8192)
                     .with_quant(quants)
                     .with_turbo(true);
                 for lora in loras {
@@ -205,7 +204,6 @@ impl ModelSpec {
             V5 => AxumModel::V5({
                 let mut builder = ModelBuilder::new(context, &map)
                     .with_token_chunk_size(self.get_chunk_size())
-                    .with_head_chunk_size(8192)
                     .with_quant(quants)
                     .with_turbo(true);
                 for lora in loras {
@@ -213,6 +211,7 @@ impl ModelSpec {
                 }
                 builder.build()?
             }),
+            V6 => todo!(),
         })
     }
 }
