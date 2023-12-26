@@ -39,20 +39,12 @@ impl NamedState {
         })))
     }
 
-    pub fn load_to(&self, pool: &AxumModelState, to: usize) {
-        self.0.state.blocking_read().load_to(pool, to).unwrap();
-    }
-
-    pub async fn load_to_async(&self, pool: &AxumModelState, to: usize) {
+    pub async fn load_to(&self, pool: &AxumModelState, to: usize) {
         self.0.state.read().await.load_to(pool, to).unwrap();
     }
 
-    pub fn back_from(&self, pool: &AxumModelState, from: usize) {
-        *(self.0.state.blocking_write()) = AxumBackedState::back_from(pool, from).unwrap();
-    }
-
-    pub async fn back_from_async(&self, pool: &AxumModelState, from: usize) {
-        *(self.0.state.write().await) = AxumBackedState::back_from(pool, from).unwrap();
+    pub async fn back_from(&self, pool: &AxumModelState, from: usize) {
+        *(self.0.state.write().await) = AxumBackedState::back_from(pool, from).await.unwrap();
     }
 
     pub async fn dump(&self, path: PathBuf) -> Result<()> {

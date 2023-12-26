@@ -46,7 +46,7 @@ impl Softmax {
                         })
                         .into_iter()
                         .unzip();
-                let softmax_queue = self.model.softmax(softmax_queue).unwrap();
+                let softmax_queue = self.model.softmax(softmax_queue).await.unwrap();
                 softmax_queue
                     .into_iter()
                     .zip(sender_queue.into_iter())

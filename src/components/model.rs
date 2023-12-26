@@ -1,11 +1,10 @@
 use anyhow::{Error, Result};
-use futures::executor::block_on;
 use itertools::Itertools;
 use web_rwkv::{
     context::Context,
     model::{
         v4::{self},
-        v5, ModelInfo, ModelState, StateBuilder, ModelBase, run::ModelRun, softmax::ModelSoftmax,
+        v5, ModelInfo, ModelState, StateBuilder, softmax::ModelSoftmax, ModelBase, run::ModelRun,
     },
 };
 
@@ -105,10 +104,10 @@ impl AxumBackedState {
         }
     }
 
-    pub fn back_from(dst: &AxumModelState, dst_index: usize) -> Result<AxumBackedState> {
+    pub async fn back_from(dst: &AxumModelState, dst_index: usize) -> Result<AxumBackedState> {
         match dst {
-            AxumModelState::V4(dst) => Ok(AxumBackedState::V4(block_on(dst.back_batch(dst_index))?)),
-            AxumModelState::V5(dst) => Ok(AxumBackedState::V5(block_on(dst.back_batch(dst_index))?)),
+            AxumModelState::V4(dst) => Ok(AxumBackedState::V4(dst.back_batch(dst_index).await?)),
+            AxumModelState::V5(dst) => Ok(AxumBackedState::V5(dst.back_batch(dst_index).await?)),
         }
     }
 }
@@ -119,7 +118,7 @@ pub enum AxumModel {
 }
 
 impl AxumModel {
-    pub fn run(
+    pub async fn run(
         &self,
         tokens: &mut Vec<Vec<u16>>,
         state: &AxumModelState,
@@ -127,14 +126,14 @@ impl AxumModel {
         match &self {
             Self::V4(model) => {
                 if let AxumModelState::V4(state) = state {
-                    block_on(model.run(tokens, state))
+                    model.run(tokens, state).await
                 } else {
                     Err(Error::msg("Mismatched state type!"))
                 }
             }
             Self::V5(model) => {
                 if let AxumModelState::V5(state) = state {
-                    block_on(model.run(tokens, state))
+                    model.run(tokens, state).await
                 } else {
                     Err(Error::msg("Mismatched state type!"))
                 }
@@ -149,24 +148,24 @@ impl AxumModel {
         }
     }
 
-    pub fn softmax(&self, input: Vec<Vec<f32>>) -> Result<Vec<Vec<f32>>> {
+    pub async fn softmax(&self, input: Vec<Vec<f32>>) -> Result<Vec<Vec<f32>>> {
         let input = input.into_iter().map(|x| Some(x)).collect_vec();
         Ok(match self {
-            AxumModel::V4(model) => block_on(model.softmax(input)),
-            AxumModel::V5(model) => block_on(model.softmax(input)),
+            AxumModel::V4(model) => model.softmax(input).await,
+            AxumModel::V5(model) => model.softmax(input).await,
         }?
         .into_iter()
         .map(|x| x.unwrap())
         .collect())
     }
 
-    pub fn infer(
+    pub async fn infer(
         &self,
         tokens: &mut Vec<Vec<u16>>,
         state: &AxumModelState,
     ) -> Result<Vec<Option<Vec<f32>>>> {
         loop {
-            let logits =self.run(tokens, state)?;
+            let logits = self.run(tokens, state).await?;
             if logits.iter().any(|l| l.is_some()) {
                 break Ok(logits);
             }

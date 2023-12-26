@@ -16,7 +16,7 @@ use web_rwkv::{
     model::{
         loader::Loader,
         Lora, LoraBlend, LoraBlendPattern, ModelBuilder, ModelInfo,
-        ModelVersion::{V4, V5},
+        ModelVersion::{V4, V5, V6},
         Quant,
     },
     tokenizer::Tokenizer,
@@ -211,7 +211,7 @@ impl ModelSpec {
                 }
                 builder.build()?
             }),
-            _=>todo!()
+            V6 => todo!(),
         })
     }
 }

@@ -9,11 +9,6 @@ use web_rwkv_axum::{
 };
 
 async fn app(args: LaunchArgs) -> Result<()> {
-    console_subscriber::ConsoleLayer::builder()
-        .with_default_env()
-        .event_buffer_capacity(1024 * 1024 * 128)
-        .init();
-
     let model_config = args.get_config()?;
     let shared_state = AppState::new(&model_config).await?;
 

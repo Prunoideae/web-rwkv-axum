@@ -1,9 +1,12 @@
-use std::{num::NonZeroUsize, sync::Arc, thread::spawn, usize};
+use std::{num::NonZeroUsize, sync::Arc, thread, usize};
 
 use itertools::Itertools;
 use lru::LruCache;
 use nohash_hasher::BuildNoHashHasher;
-use tokio::sync::{mpsc, RwLock};
+use tokio::{
+    runtime::Builder,
+    sync::{mpsc, RwLock},
+};
 use web_rwkv::context::Context;
 
 use crate::components::model::{AxumModel, AxumModelState};
@@ -41,6 +44,16 @@ struct InferIO {
 #[derive(Clone)]
 struct InferState {
     state: NamedState,
+}
+
+impl InferState {
+    async fn load_to(&self, pool: &AxumModelState, to: usize) {
+        self.state.load_to(pool, to).await
+    }
+
+    async fn back_from(&self, pool: &AxumModelState, from: usize) {
+        self.state.back_from(pool, from).await
+    }
 }
 
 impl InferRequest {
@@ -92,7 +105,7 @@ impl Slots {
         }
     }
 
-    fn insert(&mut self, request: InferRequest) {
+    async fn insert(&mut self, request: InferRequest) {
         let (io, state) = request.split();
 
         let empty_slots = self
@@ -104,7 +117,7 @@ impl Slots {
             .collect_vec();
 
         let selected_slot = {
-            let mut cache = self.cache.blocking_write();
+            let mut cache = self.cache.write().await;
             // Check if the state is in slot already
             if let Some(index) = empty_slots
                 .iter()
@@ -123,9 +136,9 @@ impl Slots {
                 .next()
             {
                 if let Some(state) = cache.put(index, state.clone()) {
-                    state.state.back_from(&self.pool, index);
+                    state.back_from(&self.pool, index).await;
                 }
-                state.state.load_to(&self.pool, index);
+                state.load_to(&self.pool, index).await;
                 index
             } else if let Some(index) = cache
                 .iter()
@@ -136,9 +149,10 @@ impl Slots {
                 .map(|(x, _)| *x)
             {
                 if let Some(state) = cache.put(index, state.clone()) {
-                    state.state.back_from(&self.pool, index);
-                };
-                state.state.load_to(&self.pool, index);
+                    state.back_from(&self.pool, index).await;
+                }
+                state.load_to(&self.pool, index).await;
+
                 index
             } else {
                 unreachable!()
@@ -149,7 +163,7 @@ impl Slots {
         self.ios[selected_slot] = Some(io);
     }
 
-    fn infer(&mut self, model: &AxumModel) {
+    async fn infer(&mut self, model: &AxumModel) {
         // Try to get tokens from infer loop
         for (tokens, io) in self.tokens_cache.iter_mut().zip(self.ios.iter_mut()) {
             if let Some(io) = io {
@@ -160,7 +174,7 @@ impl Slots {
                         //
                         // This assumes that pipeline loop time << infer time, so
                         // blocking here makes the infer more batched.
-                        io.tokens.blocking_recv()
+                        io.tokens.recv().await
                     } else {
                         // We also peek into the tokens in case if there are more
                         // weird requirements.
@@ -183,6 +197,7 @@ impl Slots {
             // We only run one time now, instead of infer at least one tokens
             // So performance can be increased in case more requests are coming in
             .run(&mut self.tokens_cache, &self.pool)
+            .await
             .unwrap()
             .into_iter()
             .enumerate()
@@ -256,33 +271,35 @@ impl InferPool {
             .filter(|(_, state)| state.get_id() == state_id)
             .next()
         {
-            state.state.back_from_async(&self.0.pool, *index).await;
+            state.state.back_from(&self.0.pool, *index).await;
         }
     }
 
-    fn infer_loop(&self, mut queue: mpsc::Receiver<Vec<InferRequest>>) {
+    async fn infer_loop(&self, mut queue: mpsc::Receiver<Vec<InferRequest>>) {
         let mut slots = Slots::new(self.0.batch_size, self.0.pool.clone(), self.0.cache.clone());
 
         // When something arrives in the channel.
         // This has an assumption that the batch is empty.
-        while let Some(requests) = queue.blocking_recv() {
+        while let Some(requests) = queue.recv().await {
             // Clear up the slots to remove done requests (sender closed)
             slots.cleanup();
-            requests
-                .into_iter()
-                .for_each(|request| slots.insert(request));
+
+            for request in requests {
+                slots.insert(request).await
+            }
+
             loop {
                 // Run for one run, this blocks on all active infer requests
                 // to wait for token input from all requests
-                slots.infer(&self.0.model);
+                slots.infer(&self.0.model).await;
 
                 // Try to receive more requests, note this is guarded by
                 // a semaphore elsewhere
                 slots.cleanup();
                 while let Ok(requests) = queue.try_recv() {
-                    requests
-                        .into_iter()
-                        .for_each(|request| slots.insert(request));
+                    for request in requests {
+                        slots.insert(request).await;
+                    }
                 }
                 // Break if everything is done so we continue waiting
                 if slots.all_clear() {
@@ -295,8 +312,12 @@ impl InferPool {
     pub fn start_loop(&self) -> mpsc::Sender<Vec<InferRequest>> {
         let (sender, receiver) = mpsc::channel(self.0.batch_size);
         let looped = self.clone();
-        spawn(move || {
-            looped.infer_loop(receiver);
+        thread::spawn(move || {
+            Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(looped.infer_loop(receiver))
         });
         sender
     }

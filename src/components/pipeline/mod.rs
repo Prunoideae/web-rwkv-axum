@@ -1,4 +1,5 @@
 use anyhow::{Error, Result};
+use rayon::prelude::*;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{Mutex, RwLock};
 
@@ -8,6 +9,11 @@ use serde_json::Value;
 use crate::app::AppState;
 
 use self::pipeline::Pipeline;
+
+use super::{
+    infer::tokens::to_tokens,
+    InferenceInterruption::{self},
+};
 
 pub mod mutate;
 pub mod pipeline;
@@ -25,6 +31,7 @@ struct PipelinePayload {
     sampler: IdParam,
     terminal: IdParam,
     normalizer: Option<IdParam>,
+    initial_prompt: Option<Vec<Value>>,
 }
 
 pub struct Pipelines {
@@ -45,10 +52,27 @@ impl Pipelines {
             sampler,
             terminal,
             normalizer,
+            initial_prompt,
         } = serde_json::from_value(payload)?;
 
         if self.has_pipeline(&id).await {
             return Err(Error::msg("Pipeline id exists!"));
+        }
+
+        let initial_prompt = initial_prompt.map(|s| {
+            s.into_iter()
+                .map(|x| to_tokens(state, x))
+                .collect::<Result<Vec<_>>>()
+        });
+        let initial_prompt = if let Some(Err(e)) = initial_prompt {
+            return Err(e.into());
+        } else {
+            initial_prompt.map(|x| x.unwrap())
+        };
+        if let Some(initial_prompt) = &initial_prompt {
+            if initial_prompt.len() == 0 {
+                return Err(Error::msg("Initial prompt size is 0!"));
+            }
         }
 
         let sampler =
@@ -76,13 +100,28 @@ impl Pipelines {
 
         let transformers = transformers
             .into_iter()
-            .map(|x| {
-                x.into_iter()
+            .enumerate()
+            .map(|(idx, x)| {
+                x.into_par_iter()
                     .map(|IdParam { type_id, params }| {
-                        state
-                            .0
-                            .registry
-                            .create_transformer(&type_id, state.clone(), params)
+                        let transformer =
+                            state
+                                .0
+                                .registry
+                                .create_transformer(&type_id, state.clone(), params);
+                        if let Some(initial_prompt) = &initial_prompt {
+                            let mut transformer = transformer?;
+                            for token in &initial_prompt[idx] {
+                                match transformer.update(&vec![*token]) {
+                                    Ok(_) => {}
+                                    Err(InferenceInterruption::Exhaustion) => transformer.clear(),
+                                    Err(InferenceInterruption::Error(e)) => Err(e)?,
+                                }
+                            }
+                            Ok(transformer)
+                        } else {
+                            transformer
+                        }
                     })
                     .collect::<Result<Vec<Box<_>>>>()
             })
