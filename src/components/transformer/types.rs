@@ -1,5 +1,7 @@
 use anyhow::Result;
-use std::fmt::Debug;
+use rayon::iter::{IntoParallelRefIterator, IndexedParallelIterator, ParallelIterator};
+use serde::Deserialize;
+use std::{default, fmt::Debug};
 
 use crate::components::InferenceInterruption;
 
@@ -47,4 +49,35 @@ pub trait Transformer: Send + Sync + Debug {
     /// You can retain a part of the data (by using Arc, etc). As long as you are sure that those
     /// shared data are *immutable*, or any multi-threaded write access is *controlled*.
     fn clone(&self) -> Box<dyn Transformer>;
+}
+
+#[derive(Debug, Deserialize, Clone, Default, Copy)]
+pub enum PenaltyMode {
+    #[default]
+    Subtract,
+    Divide,
+}
+
+pub fn penalty_transform(mode:PenaltyMode, logits:Vec<f32>, record:&Vec<f32>, presence:&Vec<f32>)->Vec<f32>
+{
+    match mode {
+        PenaltyMode::Subtract => logits
+            .par_iter()
+            .zip(record.par_iter())
+            .zip(presence.par_iter())
+            .map(|((logit, record), presence)| logit - record - presence)
+            .collect(),
+        PenaltyMode::Divide => logits
+            .par_iter()
+            .zip(record.par_iter())
+            .zip(presence.par_iter())
+            .map(|((logit, record), presence)| {
+                if *logit >= 0.0 {
+                    logit / record / presence
+                } else {
+                    logit * record * presence
+                }
+            })
+            .collect(),
+    }
 }
