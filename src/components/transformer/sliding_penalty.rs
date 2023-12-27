@@ -1,59 +1,77 @@
 use std::collections::VecDeque;
 
 use anyhow::{Error, Result};
-use ndarray::Array1;
 use serde::Deserialize;
 use serde_json::Value;
 
 use crate::{app::AppState, components::InferenceInterruption};
 
-use super::types::Transformer;
+use super::types::{penalty_transform, PenaltyMode, Transformer};
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, Copy)]
 struct PenaltyData {
     alpha_occurrence: f32,
     alpha_presence: f32,
     window_size: usize,
+    #[serde(default)]
+    mode: PenaltyMode,
 }
 
 #[derive(Debug)]
 pub struct SlidingPenalty {
     data: PenaltyData,
-    record: Array1<f32>,
-    presence: Array1<f32>,
+    record: Vec<f32>,
+    presence: Vec<f32>,
     history: VecDeque<u16>,
 }
 
 impl Transformer for SlidingPenalty {
     fn update(&mut self, prompt: &Vec<u16>) -> Result<(), InferenceInterruption> {
+        const TOLERANCE: f32 = 0.001;
         for &token in prompt {
             if self.history.len() == self.data.window_size {
                 // Remove the most ancient token
                 let removed = self.history.pop_front().unwrap();
-                self.record[removed as usize] -= self.data.alpha_occurrence;
-                if self.record[removed as usize] == 0f32 {
-                    self.presence[removed as usize] = 0f32;
+                match self.data.mode {
+                    PenaltyMode::Subtract => {
+                        self.record[removed as usize] -= self.data.alpha_occurrence;
+                        if self.record[removed as usize].abs() < TOLERANCE {
+                            self.presence[removed as usize] = 0f32;
+                        }
+                    }
+                    PenaltyMode::Divide => {
+                        self.record[removed as usize] /= self.data.alpha_occurrence;
+                        if (self.record[removed as usize] - 1.0).abs() < TOLERANCE {
+                            self.presence[removed as usize] = 0f32;
+                        }
+                    }
                 }
             }
             self.history.push_back(token);
-            self.record[token as usize] += self.data.alpha_occurrence;
+            match self.data.mode {
+                PenaltyMode::Subtract => self.record[token as usize] += self.data.alpha_occurrence,
+                PenaltyMode::Divide => self.record[token as usize] *= self.data.alpha_occurrence,
+            }
             self.presence[token as usize] = self.data.alpha_presence;
         }
         Ok(())
     }
 
     fn transform(&self, logits: Vec<f32>) -> Vec<f32> {
-        (Array1::from_vec(logits) - &self.record - &self.presence).into_raw_vec()
+        penalty_transform(self.data.mode, logits, &self.record, &self.presence)
     }
 
     fn clear(&mut self) {
-        self.record = Array1::zeros(65536);
-        self.presence = Array1::zeros(65536);
+        self.record = match self.data.mode {
+            PenaltyMode::Subtract => vec![0.0; 65536],
+            PenaltyMode::Divide => vec![1.0; 65536],
+        };
+        self.presence = vec![0.0; 65536];
     }
 
     fn clone(&self) -> Box<dyn Transformer> {
         Box::new(SlidingPenalty {
-            data: self.data.clone(),
+            data: self.data,
             presence: self.presence.clone(),
             record: self.record.clone(),
             history: self.history.clone(),
@@ -68,8 +86,11 @@ pub fn initialize_sliding(_state: AppState, data: Option<Value>) -> Result<Box<d
     let window_size = data.window_size;
     Ok(Box::new(SlidingPenalty {
         data,
-        record: Array1::zeros(65536),
-        presence: Array1::zeros(65536),
+        presence: vec![0.0; 65536],
+        record: match data.mode {
+            PenaltyMode::Subtract => vec![0.0; 65536],
+            PenaltyMode::Divide => vec![1.0; 65536],
+        },
         history: VecDeque::with_capacity(window_size),
     }))
 }
