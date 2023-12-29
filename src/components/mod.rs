@@ -10,7 +10,7 @@ use self::{
     sampler::{nucleus, types::Sampler, typical},
     terminal::{lengthed, types::Terminal, until},
     transformer::{
-        bnf_constraint, disable_tokens, global_penalty, sliding_penalty, types::Transformer,
+        bnf_constraint, disable_tokens, global_penalty, sliding_penalty, types::Transformer,logits_compressor,
     },
 };
 
@@ -61,7 +61,8 @@ impl Registry {
                         "global_penalty" => global_penalty::initialize_global,
                         "sliding_penalty" => sliding_penalty::initialize_sliding,
                         "disable_token" => disable_tokens::initialize_disable,
-                        "bnf_grammar" => bnf_constraint::BNFConstraint::initialize
+                        "bnf_grammar" => bnf_constraint::BNFConstraint::initialize,
+                        "logits_compressor"=>logits_compressor::LogitsCompressor::initialize
                     }
             },
             sampler: hashmap_ex! {
