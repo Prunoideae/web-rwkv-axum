@@ -6,7 +6,7 @@ use serde_json::Value;
 use crate::{app::AppState, hashmap_ex};
 
 use self::{
-    normalizer::types::Normalizer,
+    normalizer::{types::Normalizer, classifier_free_guidance},
     sampler::{nucleus, types::Sampler, typical},
     terminal::{lengthed, types::Terminal, until},
     transformer::{
@@ -72,7 +72,12 @@ impl Registry {
                         "typical" => typical::TypicalSampler::initialize
                     }
             },
-            normalizer: HashMap::new(),
+            normalizer: hashmap_ex! {
+                HashMap<&'static str, fn(AppState, Option<Value>) -> Result<Box<dyn Normalizer>>>,
+                    {
+                        "classifier_free_guidance" => classifier_free_guidance::ClassifierFreeGuidance::initialize,
+                    }
+            },
         }
     }
 
