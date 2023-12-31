@@ -1,6 +1,8 @@
 use anyhow::{Error, Result};
 use ndarray::Array1;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{
+    IndexedParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator,
+};
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -93,7 +95,12 @@ impl Normalizer for ClassifierFreeGuidance {
             .map(|(x, y)| *x * &y)
             .reduce(|x, y| x + y)
             .unwrap();
-        main_probs.par_mapv_inplace(|x| x.exp());
+        main_probs
+            .as_slice_mut()
+            .unwrap()
+            .par_iter_mut()
+            .zip(probs[MAIN_STATE_INDEX].as_slice().unwrap().par_iter())
+            .for_each(|(ln_p, p)| *ln_p = if *p < 0.001 { *p } else { ln_p.exp() });
         probs[MAIN_STATE_INDEX] = main_probs;
         probs.iter().map(|x| x.to_vec()).collect()
     }
