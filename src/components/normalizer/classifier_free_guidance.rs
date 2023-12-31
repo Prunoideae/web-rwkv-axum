@@ -100,7 +100,7 @@ impl Normalizer for ClassifierFreeGuidance {
             .unwrap()
             .par_iter_mut()
             .zip(probs[MAIN_STATE_INDEX].as_slice().unwrap().par_iter())
-            .for_each(|(ln_p, p)| *ln_p = if *p < 0.001 { *p } else { ln_p.exp() });
+            .for_each(|(ln_p, p)| *ln_p = if *p < 1e-30 { *p } else { ln_p.exp() });
         probs[MAIN_STATE_INDEX] = main_probs;
         probs.iter().map(|x| x.to_vec()).collect()
     }
