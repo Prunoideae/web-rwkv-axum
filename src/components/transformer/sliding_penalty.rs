@@ -86,6 +86,16 @@ pub fn initialize_sliding(_state: AppState, data: Option<Value>) -> Result<Box<d
     let data = serde_json::from_value::<PenaltyData>(data.ok_or(Error::msg(
         "Field must present to specify alpha presence, occurrence and history size!",
     ))?)?;
+    if PenaltyMode::Divide == data.mode{
+        if data.alpha_presence==0.0
+        {
+            return Err(Error::msg("alpha presence in divide mode cannot be zero!"));
+        }
+        if data.alpha_occurrence == 0.0
+        {
+            return Err(Error::msg("alpha presence in divide mode cannot be zero!"));
+        }
+    }
     let window_size = data.window_size;
     Ok(Box::new(SlidingPenalty {
         data,

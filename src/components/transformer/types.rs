@@ -51,7 +51,7 @@ pub trait Transformer: Send + Sync + Debug {
     fn clone(&self) -> Box<dyn Transformer>;
 }
 
-#[derive(Debug, Deserialize, Clone, Default, Copy)]
+#[derive(Debug, Deserialize, Clone, Default, Copy, PartialEq)]
 pub enum PenaltyMode {
     #[default]
     Subtract,
