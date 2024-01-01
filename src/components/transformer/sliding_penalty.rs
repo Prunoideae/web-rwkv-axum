@@ -42,7 +42,7 @@ impl Transformer for SlidingPenalty {
                     PenaltyMode::Divide => {
                         self.record[removed as usize] /= self.data.alpha_occurrence;
                         if (self.record[removed as usize] - 1.0).abs() < TOLERANCE {
-                            self.presence[removed as usize] = 0f32;
+                            self.presence[removed as usize] = 1f32;
                         }
                     }
                 }
