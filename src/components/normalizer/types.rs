@@ -1,6 +1,6 @@
-use std::fmt::Debug;
-
 use crate::components::InferenceInterruption;
+use anyhow::{Error, Result};
+use std::fmt::Debug;
 
 pub trait Normalizer: Send + Sync + Debug {
     /// Updates the internal state of normalizer by accepting a list of tokens.
@@ -22,7 +22,7 @@ pub trait Normalizer: Send + Sync + Debug {
     ///
     /// Returns a `Vec<Vec<f32>>` where at least first `Vec<f32>` is normalized. A normalized
     /// logits will have a sum of 1, making it safe for samplers to sample.
-    /// 
+    ///
     /// You can call state.softmax_blocking to issue a softmax to model loop.
     ///
     /// A default implementation will have all logits normalized, but depending on the use case,
@@ -41,4 +41,18 @@ pub trait Normalizer: Send + Sync + Debug {
     /// that the state mutated in `update` will not mutate the cloned state, it is safe to
     /// share internal state by using `Arc`, etc.
     fn clone(&self) -> Box<dyn Normalizer>;
+    /// Implements a special update for prompt, where it will not throw InferenceInterruption::Exhaustion
+    /// if the exhaustion happened. This is for special components like BNF which might exhaust when
+    /// reading prompt.
+    ///
+    /// By default the exhaustion is considered as error as there's no correct way to handle exhaustion
+    /// by default.
+    fn update_prompt(&mut self, tokens: &Vec<Vec<u16>>) -> Result<()> {
+        self.update(tokens).map_err(|e| match e {
+            InferenceInterruption::Exhaustion => {
+                Error::msg("Prompt exhaustion before infer starts.")
+            }
+            InferenceInterruption::Error(err) => err,
+        })
+    }
 }
