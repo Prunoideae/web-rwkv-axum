@@ -133,10 +133,9 @@ impl Transformer for BNFConstraint {
     }
 
     fn update_prompt(&mut self, tokens: &Vec<u16>) -> Result<()> {
-        let cloned = Clone::clone(self);
         self.update(tokens).map_err(|e| match e {
             InferenceInterruption::Exhaustion => {
-                *self = cloned;
+                self.clear();
                 Error::msg("BNFError: prompt exhaustion before infer starts.")
             }
             InferenceInterruption::Error(err) => err,
