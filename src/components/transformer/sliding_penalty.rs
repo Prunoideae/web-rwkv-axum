@@ -42,7 +42,7 @@ impl Transformer for SlidingPenalty {
                     PenaltyMode::Divide => {
                         self.record[removed as usize] /= self.data.alpha_occurrence;
                         if (self.record[removed as usize] - 1.0).abs() < TOLERANCE {
-                            self.presence[removed as usize] = 0f32;
+                            self.presence[removed as usize] = 1f32;
                         }
                     }
                 }
@@ -66,7 +66,10 @@ impl Transformer for SlidingPenalty {
             PenaltyMode::Subtract => vec![0.0; 65536],
             PenaltyMode::Divide => vec![1.0; 65536],
         };
-        self.presence = vec![0.0; 65536];
+        self.presence = match self.data.mode {
+            PenaltyMode::Subtract => vec![0.0; 65536],
+            PenaltyMode::Divide => vec![1.0; 65536],
+        };
     }
 
     fn clone(&self) -> Box<dyn Transformer> {
@@ -83,10 +86,23 @@ pub fn initialize_sliding(_state: AppState, data: Option<Value>) -> Result<Box<d
     let data = serde_json::from_value::<PenaltyData>(data.ok_or(Error::msg(
         "Field must present to specify alpha presence, occurrence and history size!",
     ))?)?;
+    if PenaltyMode::Divide == data.mode{
+        if data.alpha_presence==0.0
+        {
+            return Err(Error::msg("alpha presence in divide mode cannot be zero!"));
+        }
+        if data.alpha_occurrence == 0.0
+        {
+            return Err(Error::msg("alpha presence in divide mode cannot be zero!"));
+        }
+    }
     let window_size = data.window_size;
     Ok(Box::new(SlidingPenalty {
         data,
-        presence: vec![0.0; 65536],
+        presence: match data.mode {
+            PenaltyMode::Subtract => vec![0.0; 65536],
+            PenaltyMode::Divide => vec![1.0; 65536],
+        },
         record: match data.mode {
             PenaltyMode::Subtract => vec![0.0; 65536],
             PenaltyMode::Divide => vec![1.0; 65536],

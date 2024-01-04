@@ -65,7 +65,7 @@ pub trait Transformer: Send + Sync + Debug {
     }
 }
 
-#[derive(Debug, Deserialize, Clone, Default, Copy)]
+#[derive(Debug, Deserialize, Clone, Default, Copy, PartialEq)]
 pub enum PenaltyMode {
     #[default]
     Subtract,
