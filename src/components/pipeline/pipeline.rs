@@ -59,12 +59,7 @@ impl Pipeline {
         max_tokens: usize,
         state: &AppState,
     ) -> Result<(u16, Vec<u16>, &'static str)> {
-        self.update(&tokens, update_setting).map_err(|e| match e {
-            InferenceInterruption::Exhaustion => {
-                Error::msg("Pipeline is exhausted before starting.")
-            }
-            InferenceInterruption::Error(e) => e,
-        })?;
+        self.update_prompt(&tokens, update_setting)?;
 
         let logits = ticket.infer(tokens).await;
         let state_count = ticket.state_size();
@@ -83,7 +78,7 @@ impl Pipeline {
             }
 
             let token_vec = vec![vec![last_token]; state_count];
-            match self.update_blind(&token_vec) {
+            match self.update_auto(&token_vec) {
                 Ok(_) => (),
                 Err(InferenceInterruption::Exhaustion) => {
                     self.reset(reset_setting);
@@ -120,7 +115,7 @@ impl Pipeline {
 }
 
 impl Pipeline {
-    fn update_blind(&mut self, tokens: &Vec<Vec<u16>>) -> Result<(), InferenceInterruption> {
+    fn update_auto(&mut self, tokens: &Vec<Vec<u16>>) -> Result<(), InferenceInterruption> {
         self.sampler.update(tokens)?;
         if let Some(normalizer) = self.normalizer.as_mut() {
             normalizer.update(tokens)?;
@@ -139,11 +134,11 @@ impl Pipeline {
         Ok(())
     }
 
-    fn update(
+    fn update_prompt(
         &mut self,
         tokens: &Vec<Vec<u16>>,
         update_setting: UpdateSetting,
-    ) -> Result<(), InferenceInterruption> {
+    ) -> Result<()> {
         let UpdateSetting {
             transformers,
             sampler,
@@ -151,12 +146,12 @@ impl Pipeline {
         } = update_setting;
 
         if sampler {
-            self.sampler.update(tokens)?;
+            self.sampler.update_prompt(tokens)?;
         }
 
         if normalizer {
             if let Some(normalizer) = self.normalizer.as_mut() {
-                normalizer.update(tokens)?;
+                normalizer.update_prompt(tokens)?;
             }
         }
 
@@ -167,12 +162,12 @@ impl Pipeline {
             .map(|((transformers, tokens), updates)| {
                 for (transformer, update) in transformers.iter_mut().zip(updates.into_iter()) {
                     if update {
-                        transformer.update(tokens)?;
+                        transformer.update_prompt(tokens)?;
                     }
                 }
                 Ok(())
             })
-            .collect::<Result<Vec<_>, InferenceInterruption>>()?;
+            .collect::<Result<Vec<_>, Error>>()?;
         Ok(())
     }
 

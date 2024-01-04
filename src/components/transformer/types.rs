@@ -1,7 +1,7 @@
-use anyhow::Result;
-use rayon::iter::{IntoParallelRefIterator, IndexedParallelIterator, ParallelIterator};
+use anyhow::{Error, Result};
+use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use serde::Deserialize;
-use std::{default, fmt::Debug};
+use std::fmt::Debug;
 
 use crate::components::InferenceInterruption;
 
@@ -49,6 +49,20 @@ pub trait Transformer: Send + Sync + Debug {
     /// You can retain a part of the data (by using Arc, etc). As long as you are sure that those
     /// shared data are *immutable*, or any multi-threaded write access is *controlled*.
     fn clone(&self) -> Box<dyn Transformer>;
+    /// Implements a special update for prompt, where it will not throw InferenceInterruption::Exhaustion
+    /// if the exhaustion happened. This is for special components like BNF which might exhaust when
+    /// reading prompt.
+    ///
+    /// By default the exhaustion is considered as error as there's no correct way to handle exhaustion
+    /// by default.
+    fn update_prompt(&mut self, tokens: &Vec<u16>) -> Result<()> {
+        self.update(tokens).map_err(|e| match e {
+            InferenceInterruption::Exhaustion => {
+                Error::msg("Prompt exhaustion before infer starts.")
+            }
+            InferenceInterruption::Error(err) => err,
+        })
+    }
 }
 
 #[derive(Debug, Deserialize, Clone, Default, Copy, PartialEq)]
@@ -58,8 +72,12 @@ pub enum PenaltyMode {
     Divide,
 }
 
-pub fn penalty_transform(mode:PenaltyMode, logits:Vec<f32>, record:&Vec<f32>, presence:&Vec<f32>)->Vec<f32>
-{
+pub fn penalty_transform(
+    mode: PenaltyMode,
+    logits: Vec<f32>,
+    record: &Vec<f32>,
+    presence: &Vec<f32>,
+) -> Vec<f32> {
     match mode {
         PenaltyMode::Subtract => logits
             .par_iter()

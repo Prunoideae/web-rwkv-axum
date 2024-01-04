@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use anyhow::Result;
+use anyhow::{Error, Result};
 
 use crate::components::InferenceInterruption;
 
@@ -50,4 +50,18 @@ pub trait Sampler: Send + Sync + Debug {
     /// that the state mutated in `update` will not mutate the cloned state, it is safe to
     /// share internal state by using `Arc`, etc.
     fn clone(&self) -> Box<dyn Sampler>;
+    /// Implements a special update for prompt, where it will not throw InferenceInterruption::Exhaustion
+    /// if the exhaustion happened. This is for special components like BNF which might exhaust when
+    /// reading prompt.
+    ///
+    /// By default the exhaustion is considered as error as there's no correct way to handle exhaustion
+    /// by default.
+    fn update_prompt(&mut self, tokens: &Vec<Vec<u16>>) -> Result<()> {
+        self.update(tokens).map_err(|e| match e {
+            InferenceInterruption::Exhaustion => {
+                Error::msg("Prompt exhaustion before infer starts.")
+            }
+            InferenceInterruption::Error(err) => err,
+        })
+    }
 }

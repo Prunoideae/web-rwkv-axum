@@ -46,7 +46,7 @@ Response:"""
 
         pipeline = await session.pipeline.create_pipeline(
             transformers=[[]],
-            sampler=Nucleus(0.1,0.1),
+            sampler=Nucleus(0.1, 0.1),
             terminal=Lengthed(128),
         )
 
@@ -58,6 +58,7 @@ Response:"""
         print(result.result)
         print(result.ms_elapsed, result.inferred_token)
         print(result.end_reason)
+
         # for _ in range(15):
         #     await result.continue_()
         #     print(result.result, end="")
