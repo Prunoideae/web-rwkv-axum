@@ -44,7 +44,10 @@ impl Transformer for GlobalPenalty {
             PenaltyMode::Subtract => vec![0.0; 65536],
             PenaltyMode::Divide => vec![1.0; 65536],
         };
-        self.presence = vec![0.0; 65536];
+        self.presence = match self.data.mode {
+            PenaltyMode::Subtract => vec![0.0; 65536],
+            PenaltyMode::Divide => vec![1.0; 65536],
+        };
     }
 
     fn clone(&self) -> Box<dyn Transformer> {
@@ -62,7 +65,10 @@ pub fn initialize_global(_state: AppState, data: Option<Value>) -> Result<Box<dy
     ))?)?;
     Ok(Box::new(GlobalPenalty {
         data,
-        presence: vec![0.0; 65536],
+        presence: match data.mode {
+            PenaltyMode::Subtract => vec![0.0; 65536],
+            PenaltyMode::Divide => vec![1.0; 65536],
+        },
         record: match data.mode {
             PenaltyMode::Subtract => vec![0.0; 65536],
             PenaltyMode::Divide => vec![1.0; 65536],

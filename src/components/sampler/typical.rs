@@ -22,6 +22,9 @@ impl TypicalSampler {
                 temp: f32,
             }",
         ))?)?;
+        if data.temp == 0.0 {
+            return Err(Error::msg("data.temp must be larger than 0!"));
+        }
         Ok(Box::new(data))
     }
 }
@@ -54,9 +57,10 @@ impl Sampler for TypicalSampler {
         let token_id = if probs.len() == 1 {
             sorted_ids[0] as u16
         } else {
-            sorted_ids[WeightedIndex::new(probs.as_slice().unwrap())
-                .unwrap()
-                .sample(&mut rng)] as u16
+            sorted_ids[match WeightedIndex::new(probs.as_slice().unwrap()) {
+                Ok(index) => index.sample(&mut rng),
+                Err(_) => 0,
+            }] as u16
         };
         token_id
     }
