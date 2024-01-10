@@ -50,14 +50,16 @@ impl Sampler for NucleusSampler {
 }
 
 pub fn initialize(_state: AppState, data: Option<Value>) -> Result<Box<dyn Sampler>> {
-    Ok(Box::new(serde_json::from_value::<NucleusSampler>(
-        data.ok_or(Error::msg(
-            "
+    let data = serde_json::from_value::<NucleusSampler>(data.ok_or(Error::msg(
+        "
         Invalid NucleusSampler data. Example format:{
             top_p: f32,
             temp: f32
         }
         ",
-        ))?,
-    )?))
+    ))?)?;
+    if data.temp == 0.0 {
+        return Err(Error::msg("data.temp must be larger than 0!"));
+    }
+    Ok(Box::new(data))
 }
