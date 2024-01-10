@@ -95,7 +95,9 @@ impl AppState {
     }
 
     pub fn softmax_blocking(&self, logits: Vec<Vec<f32>>) -> Vec<Vec<f32>> {
-        Softmax::blocking_softmax(logits, self.0.softmax_queue.clone())
+        tokio::task::block_in_place(|| {
+            Softmax::blocking_softmax(logits, self.0.softmax_queue.clone())
+        })
     }
 }
 
