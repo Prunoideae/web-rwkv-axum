@@ -20,7 +20,7 @@ use web_rwkv::{
         Quant,
     },
     tokenizer::Tokenizer,
-    wgpu::{Adapter, Backends},
+    wgpu::{Adapter, Backends, Limits},
 };
 
 use crate::components::model::AxumModel;
@@ -151,7 +151,7 @@ impl ModelSpec {
     pub async fn create_context(&self) -> Result<Context> {
         let adapter = self.select_adapter(&Instance::new()).await?;
         println!("{:?}", adapter.get_info());
-        let context = ContextBuilder::new(adapter).with_default_pipelines();
+        let context = ContextBuilder::new(adapter).with_auto_limits(&self.model_info().await?);
         Ok(context.build().await?)
     }
 
@@ -175,6 +175,12 @@ impl ModelSpec {
             }
         }
         quants
+    }
+
+    pub async fn model_info(&self) -> Result<ModelInfo> {
+        let file = File::open(&self.path).await?;
+        let map = unsafe { Mmap::map(&file)? };
+        Loader::info(&map)
     }
 
     pub async fn load_model(&self, context: &Context) -> Result<AxumModel> {
