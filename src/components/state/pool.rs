@@ -7,7 +7,10 @@ use tokio::{
     runtime::Builder,
     sync::{mpsc, RwLock},
 };
-use web_rwkv::context::Context;
+use web_rwkv::{
+    context::Context,
+    model::{ModelInput, ModelOutput},
+};
 
 use crate::components::model::{AxumModel, AxumModelState};
 
@@ -90,7 +93,7 @@ type Cache = Arc<RwLock<LruCache<usize, InferState, BuildNoHashHasher<usize>>>>;
 
 struct Slots {
     ios: Vec<Option<InferIO>>,
-    tokens_cache: Vec<Vec<u16>>,
+    tokens_cache: Vec<ModelInput>,
     pool: Arc<AxumModelState>,
     cache: Cache,
 }
@@ -99,7 +102,7 @@ impl Slots {
     pub fn new(batch_size: usize, pool: Arc<AxumModelState>, cache: Cache) -> Self {
         Self {
             ios: (0..batch_size).map(|_| None).collect_vec(),
-            tokens_cache: (0..batch_size).map(|_| Vec::new()).collect_vec(),
+            tokens_cache: (0..batch_size).map(|_| ModelInput::default()).collect_vec(),
             pool,
             cache,
         }
@@ -166,6 +169,7 @@ impl Slots {
     async fn infer(&mut self, model: &AxumModel) {
         // Try to get tokens from infer loop
         for (tokens, io) in self.tokens_cache.iter_mut().zip(self.ios.iter_mut()) {
+            let tokens = &mut tokens.tokens;
             if let Some(io) = io {
                 if let Some(incoming_tokens) = {
                     if tokens.is_empty() {
@@ -190,7 +194,7 @@ impl Slots {
         }
 
         // Ensure that we still have something to send
-        if self.tokens_cache.iter().all(|x| x.is_empty()) {
+        if self.tokens_cache.iter().all(|x| x.tokens.is_empty()) {
             return;
         }
         for (index, logits) in model
@@ -202,7 +206,7 @@ impl Slots {
             .into_iter()
             .enumerate()
         {
-            if let Some(logits) = logits {
+            if let ModelOutput::Last(logits) = logits {
                 self.ios[index]
                     .as_mut()
                     .unwrap()

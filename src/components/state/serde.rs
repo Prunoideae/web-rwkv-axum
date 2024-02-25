@@ -16,7 +16,7 @@ struct StateV4 {
 
 #[derive(Deserialize, Serialize)]
 struct StateV5 {
-    max_batch: usize,
+    num_batch: usize,
     chunk_size: usize,
     head_size: usize,
     data: Vec<(Shape, Vec<f32>)>,
@@ -36,7 +36,7 @@ impl AxumBackedStateRepr {
                 data: state.data.to_vec(),
             }),
             AxumBackedState::V5(state) => Self::V5(StateV5 {
-                max_batch: state.max_batch,
+                num_batch: state.num_batch,
                 chunk_size: state.chunk_size,
                 head_size: state.head_size,
                 data: state.data.to_vec(),
@@ -54,11 +54,11 @@ impl AxumBackedStateRepr {
             }
             AxumBackedStateRepr::V5(StateV5 {
                 data,
-                max_batch,
+                num_batch,
                 chunk_size,
                 head_size,
             }) => AxumBackedState::V5(v5::BackedState {
-                max_batch,
+                num_batch,
                 chunk_size,
                 head_size,
                 data: data.into(),

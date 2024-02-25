@@ -5,6 +5,7 @@ use futures_util::{stream, StreamExt};
 
 use memmap2::Mmap;
 
+use safetensors::SafeTensors;
 use tokio::{
     fs::File,
     io::{AsyncReadExt, BufReader},
@@ -14,13 +15,13 @@ use serde::Deserialize;
 use web_rwkv::{
     context::{Context, ContextBuilder, Instance},
     model::{
-        loader::Loader,
-        Lora, LoraBlend, LoraBlendPattern, ModelBuilder, ModelInfo,
+        loader::{Loader, Lora, LoraBlend, LoraBlendPattern},
+        v4, v5, BuildFuture, ModelBuilder, ModelInfo,
         ModelVersion::{V4, V5, V6},
         Quant,
     },
     tokenizer::Tokenizer,
-    wgpu::{Adapter, Backends, Limits},
+    wgpu::{Adapter, Backends},
 };
 
 use crate::components::model::AxumModel;
@@ -86,9 +87,15 @@ struct LoraConfig {
 }
 
 impl LoraConfig {
-    async fn load(&self) -> Result<Lora> {
-        let mut data = Vec::new();
-        File::open(&self.path).await?.read_to_end(&mut data).await?;
+    async fn load<'a>(&self) -> Result<Lora<SafeTensors<'a>>> {
+        let mut buffer = vec![];
+        File::open(&self.path)
+            .await?
+            .read_to_end(&mut buffer)
+            .await?;
+
+        let buffer = buffer.leak();
+        let data = SafeTensors::deserialize(buffer)?;
         Ok(Lora {
             data,
             blend: LoraBlend(
@@ -180,16 +187,18 @@ impl ModelSpec {
     pub async fn model_info(&self) -> Result<ModelInfo> {
         let file = File::open(&self.path).await?;
         let map = unsafe { Mmap::map(&file)? };
-        Loader::info(&map)
+        let data = SafeTensors::deserialize(&map)?;
+        Loader::info(&data)
     }
 
     pub async fn load_model(&self, context: &Context) -> Result<AxumModel> {
         let file = File::open(&self.path).await?;
         let map = unsafe { Mmap::map(&file)? };
-        let info = Loader::info(&map)?;
+        let model = SafeTensors::deserialize(&map)?;
+        let info = Loader::info(&model)?;
 
         let quants = ModelSpec::parse_quant(self.quantization.clone(), &info);
-        let loras = stream::iter(self.lora_config.clone().unwrap_or(Vec::new()))
+        let loras = stream::iter(self.lora_config.clone().unwrap_or_default())
             .then(|x| async move { x.load().await })
             .collect::<Vec<_>>()
             .await
@@ -198,24 +207,24 @@ impl ModelSpec {
 
         Ok(match info.version {
             V4 => AxumModel::V4({
-                let mut builder = ModelBuilder::new(context, &map)
+                let mut builder = ModelBuilder::new(context, model)
                     .with_token_chunk_size(self.get_chunk_size())
                     .with_quant(quants)
                     .with_turbo(true);
                 for lora in loras {
                     builder = builder.add_lora(lora)
                 }
-                builder.build()?
+                <ModelBuilder<SafeTensors> as BuildFuture<v4::Model<_>>>::build(builder).await?
             }),
             V5 => AxumModel::V5({
-                let mut builder = ModelBuilder::new(context, &map)
+                let mut builder = ModelBuilder::new(context, model)
                     .with_token_chunk_size(self.get_chunk_size())
                     .with_quant(quants)
                     .with_turbo(true);
                 for lora in loras {
                     builder = builder.add_lora(lora)
                 }
-                builder.build()?
+                <ModelBuilder<SafeTensors> as BuildFuture<v5::Model<_>>>::build(builder).await?
             }),
             V6 => todo!(),
         })
