@@ -1,10 +1,11 @@
 use anyhow::{Error, Result};
+use half::f16;
 use itertools::Itertools;
 use web_rwkv::{
     context::Context,
     model::{
-        v4::{self},
-        v5, ModelInfo, ModelState, StateBuilder, softmax::ModelSoftmax, ModelBase, run::ModelRun,
+        run::ModelRun, softmax::ModelSoftmax, v4, v5, Build, ModelBase, ModelInfo, ModelInput,
+        ModelOutput, ModelState, StateBuilder,
     },
 };
 
@@ -25,13 +26,15 @@ impl AxumModelState {
         match model {
             AxumModel::V4(model) => Self::V4(
                 StateBuilder::new(context, model.info())
-                    .with_max_batch(batch_size)
-                    .build(),
+                    .with_num_batch(batch_size)
+                    .build()
+                    .unwrap(),
             ),
             AxumModel::V5(model) => Self::V5(
                 StateBuilder::new(context, model.info())
-                    .with_max_batch(batch_size)
-                    .build(),
+                    .with_num_batch(batch_size)
+                    .build()
+                    .unwrap(),
             ),
         }
     }
@@ -46,14 +49,16 @@ impl AxumModelState {
             AxumModel::V4(model) => Self::V4(
                 StateBuilder::new(context, model.info())
                     .with_chunk_size(chunk_size.unwrap_or(model.info().num_layer))
-                    .with_max_batch(batch_size)
-                    .build(),
+                    .with_num_batch(batch_size)
+                    .build()
+                    .unwrap(),
             ),
             AxumModel::V5(model) => Self::V5(
                 StateBuilder::new(context, model.info())
                     .with_chunk_size(chunk_size.unwrap_or(model.info().num_layer))
-                    .with_max_batch(batch_size)
-                    .build(),
+                    .with_num_batch(batch_size)
+                    .build()
+                    .unwrap(),
             ),
         }
     }
@@ -82,12 +87,14 @@ impl AxumBackedState {
             AxumModel::V4(model) => Self::V4(
                 StateBuilder::new(context, model.info())
                     .with_chunk_size(chunk_size.unwrap_or(model.info().num_layer))
-                    .build_backed(),
+                    .build()
+                    .unwrap(),
             ),
             AxumModel::V5(model) => Self::V5(
                 StateBuilder::new(context, model.info())
                     .with_chunk_size(chunk_size.unwrap_or(model.info().num_layer))
-                    .build_backed(),
+                    .build()
+                    .unwrap(),
             ),
         }
     }
@@ -95,10 +102,10 @@ impl AxumBackedState {
     pub fn load_to(&self, dst: &AxumModelState, dst_index: usize) -> Result<()> {
         match (self, dst) {
             (AxumBackedState::V4(state), AxumModelState::V4(model_state)) => {
-                model_state.load_batch(state, dst_index)
+                model_state.load_batch(state, dst_index).map_err(Into::into)
             }
             (AxumBackedState::V5(state), AxumModelState::V5(model_state)) => {
-                model_state.load_batch(state, dst_index)
+                model_state.load_batch(state, dst_index).map_err(Into::into)
             }
             _ => Err(Error::msg("Mismatched state type!")),
         }
@@ -113,27 +120,27 @@ impl AxumBackedState {
 }
 
 pub enum AxumModel {
-    V4(v4::Model<'static>),
-    V5(v5::Model<'static>),
+    V4(v4::Model<'static, f16>),
+    V5(v5::Model<'static, f16>),
 }
 
 impl AxumModel {
     pub async fn run(
         &self,
-        tokens: &mut Vec<Vec<u16>>,
+        tokens: &mut Vec<ModelInput>,
         state: &AxumModelState,
-    ) -> Result<Vec<Option<Vec<f32>>>> {
+    ) -> Result<Vec<ModelOutput>> {
         match &self {
             Self::V4(model) => {
                 if let AxumModelState::V4(state) = state {
-                    model.run(tokens, state).await
+                    model.run(tokens, state).await.map_err(Into::into)
                 } else {
                     Err(Error::msg("Mismatched state type!"))
                 }
             }
             Self::V5(model) => {
                 if let AxumModelState::V5(state) = state {
-                    model.run(tokens, state).await
+                    model.run(tokens, state).await.map_err(Into::into)
                 } else {
                     Err(Error::msg("Mismatched state type!"))
                 }
@@ -149,25 +156,31 @@ impl AxumModel {
     }
 
     pub async fn softmax(&self, input: Vec<Vec<f32>>) -> Result<Vec<Vec<f32>>> {
-        let input = input.into_iter().map(|x| Some(x)).collect_vec();
+        let input = input
+            .into_iter()
+            .map(|x| ModelOutput::Last(x))
+            .collect_vec();
         Ok(match self {
             AxumModel::V4(model) => model.softmax(input).await,
             AxumModel::V5(model) => model.softmax(input).await,
         }?
         .into_iter()
-        .map(|x| x.unwrap())
+        .map(|x| match x {
+            ModelOutput::Last(x) => x,
+            _ => unreachable!(),
+        })
         .collect())
     }
 
     pub async fn infer(
         &self,
-        tokens: &mut Vec<Vec<u16>>,
+        tokens: &mut Vec<ModelInput>,
         state: &AxumModelState,
-    ) -> Result<Vec<Option<Vec<f32>>>> {
+    ) -> Result<Vec<ModelOutput>> {
         loop {
-            let logits = self.run(tokens, state).await?;
-            if logits.iter().any(|l| l.is_some()) {
-                break Ok(logits);
+            let out = self.run(tokens, state).await?;
+            if out.iter().any(|out| out.is_some()) {
+                break Ok(out);
             }
         }
     }

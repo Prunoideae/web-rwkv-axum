@@ -5,8 +5,8 @@ use serde_json::Value;
 use crate::{app::AppState, register_handlers};
 
 mod handle_infer;
-mod handle_states;
 mod handle_pipeline;
+mod handle_states;
 
 pub mod types;
 
