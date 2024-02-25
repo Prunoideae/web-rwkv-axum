@@ -63,10 +63,8 @@ pub async fn modify_pipeline(data: Option<Value>, state: AppState) -> Result<Val
         id: String,
         modifications: Vec<Modification>,
     }
-    let Modify {
-        id,
-        modifications,
-    } = serde_json::from_value(data.ok_or(Error::msg("Payload required"))?)?;
+    let Modify { id, modifications } =
+        serde_json::from_value(data.ok_or(Error::msg("Payload required"))?)?;
 
     let pipeline = state.0.pipelines.get_pipeline(&id).await?;
     {

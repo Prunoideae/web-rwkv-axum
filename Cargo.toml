@@ -18,6 +18,7 @@ faer = { version = "0.13.5", features = ["ndarray"] }
 fastrand = "2.0.0"
 futures = "0.3.28"
 futures-util = "0.3.28"
+half = "2.2"
 itertools = "0.11.0"
 lazy_static = "1.4.0"
 lru = "0.12.0"
@@ -32,12 +33,13 @@ rand = "0.8.5"
 rayon = "1.7.0"
 regex = "1.10.2"
 rustc-hash = "1.1.0"
+safetensors = "0.4"
 serde = "1.0.188"
 serde_cbor = "0.11.2"
 serde_json = "1.0.105"
 tokio = { version = "1.32.0", features = ["full"] }
-toml = "0.7.6"
-web-rwkv = { git = 'https://github.com/cryscan/web-rwkv' }
+toml = "0.8.10"
+web-rwkv = "0.6.22"
 
 [profile.release]
 panic = "abort"

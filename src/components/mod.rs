@@ -6,11 +6,12 @@ use serde_json::Value;
 use crate::{app::AppState, hashmap_ex};
 
 use self::{
-    normalizer::{types::Normalizer, classifier_free_guidance},
+    normalizer::{classifier_free_guidance, types::Normalizer},
     sampler::{nucleus, types::Sampler, typical},
     terminal::{lengthed, types::Terminal, until},
     transformer::{
-        bnf_constraint, disable_tokens, global_penalty, sliding_penalty, types::Transformer,logits_compressor,
+        bnf_constraint, disable_tokens, global_penalty, logits_compressor, sliding_penalty,
+        types::Transformer,
     },
 };
 
