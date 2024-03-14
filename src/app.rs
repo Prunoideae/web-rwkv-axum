@@ -3,6 +3,7 @@ use std::{fmt::Debug, sync::Arc};
 use anyhow::Result;
 use tokio::sync::{mpsc::Sender, oneshot};
 use web_rwkv::{context::Context, tokenizer::Tokenizer};
+use log;
 
 use crate::{
     components::{
@@ -29,7 +30,7 @@ impl AppState {
     pub async fn new(config: &ModelConfig) -> Result<Self> {
         let context = config.model.create_context().await?;
         let model = Arc::new(config.model.load_model(&context).await?);
-        println!("Model is loaded.");
+        log::info!("Model is loaded.");
 
         let softmax = Softmax::new(model.clone(), config.model.get_max_concurrency()).await;
         let (softmax_sender, _) = softmax.run().await;

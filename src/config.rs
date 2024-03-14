@@ -157,7 +157,7 @@ impl ModelSpec {
 
     pub async fn create_context(&self) -> Result<Context> {
         let adapter = self.select_adapter(&Instance::new()).await?;
-        println!("{:?}", adapter.get_info());
+        // println!("{:?}", adapter.get_info()); No need to print this now
         let context = ContextBuilder::new(adapter).with_auto_limits(&self.model_info().await?);
         Ok(context.build().await?)
     }
