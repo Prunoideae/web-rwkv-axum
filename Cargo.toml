@@ -41,7 +41,7 @@ serde_cbor = "0.11.2"
 serde_json = "1.0.105"
 tokio = { version = "1.32.0", features = ["full"] }
 toml = "0.8.10"
-web-rwkv = "0.6.23"
+web-rwkv = "0.6.28"
 
 [profile.release]
 panic = "abort"
