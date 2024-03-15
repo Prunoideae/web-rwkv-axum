@@ -14,6 +14,12 @@ Still under heavy development, PRs and suggestions are welcome.
   - Build and install the package by running `python setup.py build && python setup.py install` in `wra-py`
   - Run the `tests/test_pipeline.py` and check the code.
 
+## Logging
+
+- By default log messages are sent to stderr with level=info.
+- To change the level, set environment variable by `RUST_LOG=<level>`.
+  - Possible levels are `debug,info,warning,error,off`.
+
 ## Protocol
 
 Since it's built based on `websocket`, and supports highly varied pipeline customizations including complex logits transformations and sampling methods, `web-rwkv-axum` is built on a new protocol.

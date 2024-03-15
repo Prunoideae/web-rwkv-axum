@@ -26,7 +26,7 @@ async fn app(args: LaunchArgs) -> Result<()> {
 
 fn main() {
     let parsed = LaunchArgs::parse();
-
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     Builder::new_multi_thread()
         .worker_threads(parsed.get_workers())
         .enable_all()
